@@ -366,7 +366,12 @@ for (const assetSource of staticAssetSources) {
 	const sourcePath = path.join(sourceRoot, assetSource);
 	const outputPath = path.join(publicAssetRoot, assetSource);
 	await mkdir(path.dirname(outputPath), { recursive: true });
-	await copyFile(sourcePath, outputPath);
+	if (/\.svg$/i.test(assetSource)) {
+		const svg = await readFile(sourcePath, 'utf8');
+		await writeFile(outputPath, rewriteSvgLinks(svg, assetSource));
+	} else {
+		await copyFile(sourcePath, outputPath);
+	}
 }
 
 console.log(`Synced ${pages.length} pages from ${sourceRoot}`);
@@ -412,16 +417,28 @@ function rewriteLinks(markdown, page) {
 }
 
 function resolveSourceTarget(target, page) {
+	return resolveRepositoryTarget(target, path.dirname(page.src), page.lang);
+}
+
+function resolveAssetTarget(target, assetSource) {
+	return resolveRepositoryTarget(
+		target,
+		path.dirname(assetSource),
+		inferLangFromSource(assetSource),
+	);
+}
+
+function resolveRepositoryTarget(target, sourceDirectory, lang) {
 	const [targetPath, hash = ''] = target.split('#');
 	if (!targetPath) return null;
 
-	const absoluteSourceTarget = normalize(path.join(path.dirname(page.src), targetPath));
-	const outputTarget = getOutputTarget(absoluteSourceTarget, page.lang);
+	const absoluteSourceTarget = normalize(path.join(sourceDirectory, targetPath));
+	const outputTarget = getOutputTarget(absoluteSourceTarget, lang);
 	if (outputTarget) return toSiteLink(outputTarget, hash);
 
 	if (targetPath.endsWith('/')) {
 		const directoryReadme = normalize(path.join(absoluteSourceTarget, 'README.md'));
-		const directoryOutput = getOutputTarget(directoryReadme, page.lang);
+		const directoryOutput = getOutputTarget(directoryReadme, lang);
 		if (directoryOutput) return toSiteLink(directoryOutput, hash);
 	}
 
@@ -433,8 +450,33 @@ function resolveSourceTarget(target, page) {
 	return `${sourceRepoUrl}/blob/main/${encodeURI(absoluteSourceTarget).replaceAll('%2F', '/')}`;
 }
 
+function rewriteSvgLinks(svg, assetSource) {
+	return svg.replace(
+		/(<a\b[^>]*?\s(?:href|xlink:href)=)(["'])(.*?)\2/g,
+		(match, prefix, quote, target) => {
+			if (/^(https?:|mailto:|#|\/)/.test(target)) return match;
+			const rewritten = resolveAssetTarget(target, assetSource);
+			if (!rewritten) return match;
+			return `${prefix}${quote}${escapeXmlAttribute(rewritten)}${quote}`;
+		},
+	);
+}
+
+function inferLangFromSource(source) {
+	if (source.includes('/en/')) return 'en';
+	if (source.includes('/ja/')) return 'ja';
+	return 'ja';
+}
+
 function getOutputTarget(source, lang) {
 	return sourceToDestByLang.get(`${lang}:${source}`) || sourceToDest.get(source);
+}
+
+function escapeXmlAttribute(value) {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&apos;');
 }
 
 function stripLeadingHeading(markdown) {
