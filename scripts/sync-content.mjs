@@ -382,11 +382,12 @@ if (staticAssetSources.size > 0) {
 function renderPage(page, body) {
 	const sourceUrl = `${sourceRepoUrl}/blob/main/${encodeURI(page.src).replaceAll('%2F', '/')}`;
 	const editUrl = `${sourceRepoUrl}/edit/main/${encodeURI(page.src).replaceAll('%2F', '/')}`;
-	const sourceLabel = page.lang === 'en' ? 'Source document' : '正本文書';
+	const sourceLabel = page.lang === 'en' ? 'Source' : '原文';
+	const sourceLinkLabel = page.lang === 'en' ? 'View on GitHub' : 'GitHubで原文を見る';
 	const editLabel = page.lang === 'en' ? 'Propose an edit' : '編集を提案';
-	const note = `> ${sourceLabel}: [${page.src}](${sourceUrl}) / [${editLabel}](${editUrl})`;
+	const note = `> ${sourceLabel}: [${sourceLinkLabel}](${sourceUrl}) / [${editLabel}](${editUrl})`;
 	const description =
-		page.lang === 'en' ? `Generated from ${page.src}` : `${page.src} から生成`;
+		page.lang === 'en' ? `${page.title} source page` : `${page.title}の公開ページ`;
 
 	return `---\ntitle: ${JSON.stringify(page.title)}\ndescription: ${JSON.stringify(description)}\n---\n\n${note}\n\n${body.trim()}\n`;
 }
