@@ -8,7 +8,10 @@ export default defineConfig({
 	integrations: [
 		mermaid(),
 		starlight({
-			title: 'World Foundation Design',
+			title: {
+				ja: 'World Foundation設計',
+				en: 'World Foundation Design',
+			},
 			disable404Route: true,
 			locales: {
 				root: {
@@ -30,22 +33,27 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: '基本設計',
+					translations: { en: 'Core Design' },
 					items: [{ autogenerate: { directory: 'docs' } }],
 				},
 				{
 					label: 'モジュール',
+					translations: { en: 'Modules' },
 					items: [{ autogenerate: { directory: 'modules' } }],
 				},
 				{
 					label: '運用',
+					translations: { en: 'Operations' },
 					items: [{ slug: 'proposals' }, { slug: 'decisions' }, { slug: 'glossary' }],
 				},
 				{
 					label: '調査・図表',
+					translations: { en: 'Research and Diagrams' },
 					items: [{ slug: 'research' }, { slug: 'research/topics' }, { slug: 'diagrams' }],
 				},
 				{
 					label: '方針',
+					translations: { en: 'Policies' },
 					items: [
 						{ slug: 'policies/safety' },
 						{ slug: 'policies/code-of-conduct' },
