@@ -1,9 +1,10 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const siteRoot = process.cwd();
+const defaultSourceRoot = await findDefaultSourceRoot();
 const sourceRoot = path.resolve(
-	process.env.WORLD_FOUNDATION_SOURCE || path.join(siteRoot, '..', 'world-foundation'),
+	process.env.WORLD_FOUNDATION_SOURCE || defaultSourceRoot,
 );
 const outputRoot = path.join(siteRoot, 'src', 'content', 'docs');
 const sourceRepoUrl = 'https://github.com/acecore-systems/world-foundation';
@@ -300,4 +301,19 @@ function normalize(filePath) {
 function normalizeBasePath(basePath) {
 	if (!basePath || basePath === '/') return '';
 	return `/${basePath.replace(/^\/|\/$/g, '')}`;
+}
+
+async function findDefaultSourceRoot() {
+	const cloudflareContentRoot = path.join(siteRoot, 'content-source');
+	if (await exists(cloudflareContentRoot)) return cloudflareContentRoot;
+	return path.join(siteRoot, '..', 'world-foundation');
+}
+
+async function exists(filePath) {
+	try {
+		await access(filePath);
+		return true;
+	} catch {
+		return false;
+	}
 }
