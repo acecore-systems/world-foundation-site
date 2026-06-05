@@ -1,0 +1,20 @@
+{
+  "name": "world-foundation-site",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "sync:content": "node scripts/sync-content.mjs",
+    "dev": "npm run sync:content && astro dev",
+    "start": "npm run dev",
+    "build": "npm run sync:content && astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.39.3",
+    "astro": "^6.3.1",
+    "astro-mermaid": "^2.0.2",
+    "mermaid": "^11.15.0",
+    "sharp": "^0.34.5"
+  }
+}
