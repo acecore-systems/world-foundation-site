@@ -37,7 +37,36 @@ The build script runs `scripts/sync-content.mjs` first. Generated pages are writ
 
 ## Deployment
 
-GitHub Actions checks out both repositories, syncs content from `acecore-systems/world-foundation`, builds Starlight, and publishes the result to GitHub Pages.
+GitHub Actions checks out both repositories, syncs content from `acecore-systems/world-foundation`, builds Starlight, and publishes the result to Cloudflare Pages by Direct Upload.
+
+The Cloudflare Pages project name is:
+
+```txt
+world-foundation-site
+```
+
+Required GitHub Actions secrets:
+
+```txt
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+```
+
+The token needs permission to edit Cloudflare Pages on the target account.
+If these secrets are missing, CI still builds the site but skips the Cloudflare deployment step.
+
+To create the Pages project manually before the first CI deployment:
+
+```sh
+npx wrangler pages project create world-foundation-site --production-branch main
+```
+
+To deploy manually from a local checkout:
+
+```sh
+npm run build
+npx wrangler pages deploy dist --project-name=world-foundation-site --branch=main
+```
 
 ## Repository Boundary
 

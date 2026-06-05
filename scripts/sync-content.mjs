@@ -7,7 +7,7 @@ const sourceRoot = path.resolve(
 );
 const outputRoot = path.join(siteRoot, 'src', 'content', 'docs');
 const sourceRepoUrl = 'https://github.com/acecore-systems/world-foundation';
-const siteBasePath = normalizeBasePath(process.env.SITE_BASE_PATH || '/world-foundation-site');
+const siteBasePath = normalizeBasePath(process.env.SITE_BASE_PATH || '');
 
 const pages = [
 	{ src: 'README.md', dest: 'index.md', title: 'World Foundation Design', lang: 'ja' },

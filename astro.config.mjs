@@ -4,8 +4,7 @@ import starlight from '@astrojs/starlight';
 import mermaid from 'astro-mermaid';
 
 export default defineConfig({
-	site: 'https://acecore-systems.github.io',
-	base: '/world-foundation-site',
+	site: 'https://world-foundation-site.pages.dev',
 	integrations: [
 		mermaid(),
 		starlight({
