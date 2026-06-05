@@ -6,6 +6,7 @@ dist/
 # generated from acecore-systems/world-foundation
 src/content/docs/
 content-source/
+public/source-assets/
 
 # dependencies
 node_modules/

@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const siteRoot = process.cwd();
@@ -7,8 +7,10 @@ const sourceRoot = path.resolve(
 	process.env.WORLD_FOUNDATION_SOURCE || defaultSourceRoot,
 );
 const outputRoot = path.join(siteRoot, 'src', 'content', 'docs');
+const publicAssetRoot = path.join(siteRoot, 'public', 'source-assets');
 const sourceRepoUrl = 'https://github.com/acecore-systems/world-foundation';
 const siteBasePath = normalizeBasePath(process.env.SITE_BASE_PATH || '');
+const staticAssetSources = new Set();
 
 const pages = [
 	{ src: 'README.md', dest: 'index.md', title: 'World Foundation設計', lang: 'ja' },
@@ -347,6 +349,7 @@ for (const page of pages) {
 }
 
 await rm(outputRoot, { recursive: true, force: true });
+await rm(publicAssetRoot, { recursive: true, force: true });
 await mkdir(outputRoot, { recursive: true });
 
 for (const page of pages) {
@@ -359,7 +362,17 @@ for (const page of pages) {
 	await writeFile(outputPath, generated);
 }
 
+for (const assetSource of staticAssetSources) {
+	const sourcePath = path.join(sourceRoot, assetSource);
+	const outputPath = path.join(publicAssetRoot, assetSource);
+	await mkdir(path.dirname(outputPath), { recursive: true });
+	await copyFile(sourcePath, outputPath);
+}
+
 console.log(`Synced ${pages.length} pages from ${sourceRoot}`);
+if (staticAssetSources.size > 0) {
+	console.log(`Copied ${staticAssetSources.size} static asset(s)`);
+}
 
 function renderPage(page, body) {
 	const sourceUrl = `${sourceRepoUrl}/blob/main/${encodeURI(page.src).replaceAll('%2F', '/')}`;
@@ -374,23 +387,50 @@ function renderPage(page, body) {
 }
 
 function rewriteLinks(markdown, page) {
-	return markdown.replace(/\[([^\]]+)\]\((?!https?:|mailto:|#)([^)]+)\)/g, (match, label, target) => {
-		const [targetPath, hash = ''] = target.split('#');
-		if (!targetPath) return match;
+	return markdown
+		.replace(/!\[([^\]]*)\]\((?!https?:|mailto:|#|\/)([^)]+)\)/g, (match, label, target) => {
+			const rewritten = resolveSourceTarget(target, page);
+			if (!rewritten) return match;
+			return `![${label}](${rewritten})`;
+		})
+		.replace(/(\[!\[[^\]]*\]\([^)]+\)\]\()((?!https?:|mailto:|#|\/)[^)]+)(\))/g, (match, prefix, target, suffix) => {
+			const rewritten = resolveSourceTarget(target, page);
+			if (!rewritten) return match;
+			return `${prefix}${rewritten}${suffix}`;
+		})
+		.replace(/\[([^\]]+)\]\((?!https?:|mailto:|#|\/)([^)]+)\)/g, (match, label, target) => {
+			const rewritten = resolveSourceTarget(target, page);
+			if (!rewritten) return match;
+			return `[${label}](${rewritten})`;
+		})
+		.replace(/(click\s+\S+\s+")([^"]+)(")/g, (match, prefix, target, suffix) => {
+			if (/^(https?:|mailto:|#|\/)/.test(target)) return match;
+			const rewritten = resolveSourceTarget(target, page);
+			if (!rewritten) return match;
+			return `${prefix}${rewritten}${suffix}`;
+		});
+}
 
-		const absoluteSourceTarget = normalize(path.join(path.dirname(page.src), targetPath));
-		const outputTarget = getOutputTarget(absoluteSourceTarget, page.lang);
-		if (outputTarget) return `[${label}](${toSiteLink(outputTarget, hash)})`;
+function resolveSourceTarget(target, page) {
+	const [targetPath, hash = ''] = target.split('#');
+	if (!targetPath) return null;
 
-		if (targetPath.endsWith('/')) {
-			const directoryReadme = normalize(path.join(absoluteSourceTarget, 'README.md'));
-			const directoryOutput = getOutputTarget(directoryReadme, page.lang);
-			if (directoryOutput) return `[${label}](${toSiteLink(directoryOutput, hash)})`;
-		}
+	const absoluteSourceTarget = normalize(path.join(path.dirname(page.src), targetPath));
+	const outputTarget = getOutputTarget(absoluteSourceTarget, page.lang);
+	if (outputTarget) return toSiteLink(outputTarget, hash);
 
-		const sourceTarget = `${sourceRepoUrl}/blob/main/${encodeURI(absoluteSourceTarget).replaceAll('%2F', '/')}`;
-		return `[${label}](${sourceTarget})`;
-	});
+	if (targetPath.endsWith('/')) {
+		const directoryReadme = normalize(path.join(absoluteSourceTarget, 'README.md'));
+		const directoryOutput = getOutputTarget(directoryReadme, page.lang);
+		if (directoryOutput) return toSiteLink(directoryOutput, hash);
+	}
+
+	if (isStaticAssetTarget(absoluteSourceTarget)) {
+		staticAssetSources.add(absoluteSourceTarget);
+		return toPublicAssetLink(absoluteSourceTarget, hash);
+	}
+
+	return `${sourceRepoUrl}/blob/main/${encodeURI(absoluteSourceTarget).replaceAll('%2F', '/')}`;
 }
 
 function getOutputTarget(source, lang) {
@@ -406,6 +446,16 @@ function toSiteLink(dest, hash) {
 	const cleanPath = withoutIndex.startsWith('/') ? withoutIndex : `/${withoutIndex}`;
 	const pathWithBase = `${siteBasePath}${cleanPath}`.replace(/\/{2,}/g, '/');
 	return hash ? `${pathWithBase}#${hash}` : pathWithBase;
+}
+
+function toPublicAssetLink(source, hash) {
+	const assetPath = `/source-assets/${source}`;
+	const pathWithBase = `${siteBasePath}${assetPath}`.replace(/\/{2,}/g, '/');
+	return hash ? `${pathWithBase}#${hash}` : pathWithBase;
+}
+
+function isStaticAssetTarget(source) {
+	return /\.(svg|png|jpe?g|gif|webp|avif|ico|pdf)$/i.test(source);
 }
 
 function normalize(filePath) {
