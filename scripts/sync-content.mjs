@@ -409,16 +409,41 @@ function rewriteLinks(markdown, page) {
 			if (!rewritten) return match;
 			return `[${label}](${rewritten})`;
 		})
-		.replace(/(click\s+\S+\s+")([^"]+)(")/g, (match, prefix, target, suffix) => {
-			if (/^(https?:|mailto:|#|\/)/.test(target)) return match;
-			const rewritten = resolveSourceTarget(target, page);
+		.replace(/```([^\r\n`]*)\r?\n([\s\S]*?)```/g, (match, info, code) => {
+			const language = info.trim().split(/\s+/)[0]?.toLowerCase();
+			if (language !== 'mermaid') return match;
+			return `\`\`\`${info}\n${rewriteMermaidClickLinks(code, page)}\`\`\``;
+		});
+}
+
+function rewriteMermaidClickLinks(code, page) {
+	return code.replace(
+		/(^[ \t]*click[ \t]+\S+(?:[ \t]+href)?[ \t]+")([^"]+)(")/gm,
+		(match, prefix, target, suffix) => {
+			const rewritten = resolveMermaidClickTarget(target, page);
 			if (!rewritten) return match;
 			return `${prefix}${rewritten}${suffix}`;
-		});
+		},
+	);
 }
 
 function resolveSourceTarget(target, page) {
 	return resolveRepositoryTarget(target, path.dirname(page.src), page.lang);
+}
+
+function resolveMermaidClickTarget(target, page) {
+	const repositoryTarget = resolveGitHubBlobTarget(target);
+	if (repositoryTarget) {
+		return resolveRepositoryTarget(repositoryTarget, '', page.lang);
+	}
+	if (isExternalOrRootTarget(target)) return null;
+	return resolveSourceTarget(target, page);
+}
+
+function resolveGitHubBlobTarget(target) {
+	const prefix = `${sourceRepoUrl}/blob/main/`;
+	if (!target.startsWith(prefix)) return null;
+	return decodeURI(target.slice(prefix.length));
 }
 
 function resolveAssetTarget(target, assetSource) {
@@ -455,7 +480,7 @@ function rewriteSvgLinks(svg, assetSource) {
 	return svg.replace(
 		/(<a\b[^>]*?\s(?:href|xlink:href)=)(["'])(.*?)\2/g,
 		(match, prefix, quote, target) => {
-			if (/^(https?:|mailto:|#|\/)/.test(target)) return match;
+			if (isExternalOrRootTarget(target)) return match;
 			const rewritten = resolveAssetTarget(target, assetSource);
 			if (!rewritten) return match;
 			return `${prefix}${quote}${escapeXmlAttribute(rewritten)}${quote}`;
@@ -478,6 +503,10 @@ function escapeXmlAttribute(value) {
 		.replaceAll('&', '&amp;')
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&apos;');
+}
+
+function isExternalOrRootTarget(target) {
+	return /^(https?:|mailto:|#|\/)/.test(target);
 }
 
 function stripLeadingHeading(markdown) {
