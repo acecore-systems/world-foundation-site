@@ -1,0 +1,43 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+
+const foundations = [
+	{
+		icon: 'puzzle',
+		title: '地域自律性',
+		description: '地域ごとの意思と多様性を尊重し、自律的に運営する。',
+		tone: 'lime',
+	},
+	{
+		icon: 'random',
+		title: '共通プロトコル',
+		description: '安全境界を確認しながら、協力に必要な共通仕様を設計する。',
+		tone: 'cyan',
+	},
+	{
+		icon: 'code-branch',
+		title: 'フォーク可能性',
+		description: '腐敗や停滞に備え、別の実装へ分岐できる設計を重視する。',
+		tone: 'blue',
+	},
+] as const;
+---
+
+<section class="foundation-cards" aria-labelledby="foundation-title">
+	<div class="landing-shell">
+		<h2 id="foundation-title" class="visually-hidden">3つの設計要素</h2>
+		<div class="foundation-cards__grid">
+			{
+				foundations.map((foundation) => (
+					<article class={`foundation-card foundation-card--${foundation.tone}`}>
+						<div class="foundation-card__icon" aria-hidden="true">
+							<Icon name={foundation.icon} size="3rem" />
+						</div>
+						<h3>{foundation.title}</h3>
+						<p>{foundation.description}</p>
+					</article>
+				))
+			}
+		</div>
+	</div>
+</section>

@@ -1,0 +1,48 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+
+const principles = [
+	{
+		number: '01',
+		title: '選べる',
+		description: '地域ごとの価値観やルールを、自分たちの事情に合わせて決められる。',
+		tone: 'lime',
+	},
+	{
+		number: '02',
+		title: 'つながれる',
+		description: '最小限の共通仕様で、違いを保ったまま協力できる。',
+		tone: 'cyan',
+	},
+	{
+		number: '03',
+		title: '離れられる',
+		description: '不当な不利益を受けずに離脱し、別の道を選び直せる。',
+		tone: 'blue',
+	},
+];
+---
+
+<section class="principle-flow" id="principles" aria-labelledby="principles-title">
+	<div class="landing-shell">
+		<h2 id="principles-title" class="visually-hidden">協力のための3つの原則</h2>
+		<div class="principle-flow__grid">
+			{
+				principles.map((principle, index) => (
+					<article class={`principle principle--${principle.tone}`}>
+						<p class="principle__number">{principle.number}</p>
+						<h3>{principle.title}</h3>
+						<p>{principle.description}</p>
+						{
+							index < principles.length - 1 && (
+								<span class="principle__arrow" aria-hidden="true">
+									<Icon name="right-caret" size="2rem" />
+								</span>
+							)
+						}
+					</article>
+				))
+			}
+		</div>
+	</div>
+</section>

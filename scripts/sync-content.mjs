@@ -13,7 +13,6 @@ const siteBasePath = normalizeBasePath(process.env.SITE_BASE_PATH || '');
 const staticAssetSources = new Set();
 
 const pages = [
-	{ src: 'README.md', dest: 'index.md', title: 'World Foundation設計', lang: 'ja' },
 	{ src: 'CONTRIBUTING.md', dest: 'policies/contributing.md', title: '貢献ガイド', lang: 'ja' },
 	{ src: 'GOVERNANCE.md', dest: 'policies/governance.md', title: '運営方針', lang: 'ja' },
 	{ src: 'SAFETY.md', dest: 'policies/safety.md', title: '安全方針', lang: 'ja' },

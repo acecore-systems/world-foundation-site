@@ -1,0 +1,52 @@
+---
+import ConnectionLandscape from '../components/landing/ConnectionLandscape.astro';
+import FoundationCards from '../components/landing/FoundationCards.astro';
+import LandingHeader from '../components/landing/LandingHeader.astro';
+import PrincipleFlow from '../components/landing/PrincipleFlow.astro';
+import SafetyAndCta from '../components/landing/SafetyAndCta.astro';
+import LandingLayout from '../layouts/LandingLayout.astro';
+
+const title = 'World Foundation Design — 地域ごとの違いを残したまま、つながる。';
+const description =
+	'地域や組織の自治を保ちながら、共通プロトコルで協力できる仕組みを考える、レビュー可能な社会設計プロジェクトです。';
+---
+
+<LandingLayout {title} {description}>
+	<LandingHeader />
+	<main id="main-content">
+		<section class="hero" aria-labelledby="hero-title">
+			<div class="landing-shell hero__inner">
+				<h1 id="hero-title">
+					<span class="hero-title__desktop">
+						地域ごとの違いを<br />
+						残したまま、つながる。
+					</span>
+					<span class="hero-title__mobile">
+						<span>地域ごとの</span>
+						<span>違いを残した</span>
+						<span>まま、つながる。</span>
+					</span>
+				</h1>
+				<p>
+					一つに揃えるのではなく、地域や組織の自治を保ちながら、<br
+						class="desktop-break"
+					/>共通プロトコルで協力できる仕組みを設計します。
+				</p>
+				<div class="hero__actions">
+					<a class="button button--primary" href="#overview">概要を知る</a>
+					<a class="button button--secondary" href="/docs/">設計を読む</a>
+				</div>
+			</div>
+		</section>
+
+		<section class="overview" id="overview" aria-labelledby="overview-title">
+			<span id="全体像" class="legacy-anchor" aria-hidden="true"></span>
+			<h2 id="overview-title" class="visually-hidden">構想の全体像</h2>
+			<ConnectionLandscape />
+		</section>
+
+		<PrincipleFlow />
+		<FoundationCards />
+		<SafetyAndCta />
+	</main>
+</LandingLayout>

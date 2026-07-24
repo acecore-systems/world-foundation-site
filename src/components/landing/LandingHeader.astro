@@ -1,0 +1,50 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+
+const navItems = [
+	{ href: '#overview', label: '構想' },
+	{ href: '#principles', label: '原則' },
+	{ href: '#participate', label: '参加' },
+	{ href: '/docs/', label: 'Docs' },
+];
+---
+
+<header class="landing-header">
+	<div class="landing-shell landing-header__inner">
+		<a class="brand" href="/" aria-label="World Foundation トップ">
+			<img src="/lp/brand-mark.svg" width="38" height="38" alt="" />
+			<span>World Foundation</span>
+		</a>
+
+		<nav class="desktop-nav" aria-label="メインナビゲーション">
+			<ul>
+				{
+					navItems.map((item) => (
+						<li>
+							<a href={item.href}>{item.label}</a>
+						</li>
+					))
+				}
+			</ul>
+		</nav>
+
+		<div class="language-switch" aria-label="言語">
+			<span aria-current="page">JP</span>
+			<span aria-hidden="true">/</span>
+			<a href="/en/" hreflang="en" lang="en">EN Docs</a>
+		</div>
+
+		<details class="mobile-nav">
+			<summary aria-label="メニュー">
+				<Icon name="bars" size="1.5rem" />
+				<span>メニュー</span>
+			</summary>
+			<nav aria-label="モバイルナビゲーション">
+				{
+					navItems.map((item) => <a href={item.href}>{item.label}</a>)
+				}
+				<a href="/en/" hreflang="en" lang="en">English Docs</a>
+			</nav>
+		</details>
+	</div>
+</header>
