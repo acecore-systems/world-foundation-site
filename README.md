@@ -2,9 +2,11 @@
 
 This repository is the web presentation layer for [`acecore-systems/world-foundation`](https://github.com/acecore-systems/world-foundation).
 
-The source of truth remains the Markdown files in `world-foundation`. This repository only contains the Starlight configuration, sync script, and Cloudflare Pages build configuration used to publish those documents as a website.
+The source of truth remains the Markdown files in `world-foundation`. The site currently runs on Astro 7 and Starlight 0.41. This repository only contains the Starlight configuration, sync script, and Cloudflare Pages build configuration used to publish those documents as a website.
 
 ## Local Development
+
+Node.js 24.18.0 or later is required. The repository-pinned version is recorded in `.node-version`.
 
 Clone both repositories as siblings:
 
