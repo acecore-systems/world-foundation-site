@@ -104,7 +104,7 @@ img {
 	display: grid;
 	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
-	min-height: 88px;
+	min-height: 80px;
 	gap: 28px;
 }
 
@@ -311,7 +311,7 @@ summary:focus-visible {
 
 .connection-landscape {
 	width: 100%;
-	height: clamp(360px, 50vw, 630px);
+	height: clamp(390px, calc(26.087vw + 129.13px), 630px);
 	overflow: hidden;
 	background: var(--wf-bg);
 }
@@ -324,7 +324,7 @@ summary:focus-visible {
 }
 
 .principle-flow {
-	padding: clamp(72px, 9vw, 108px) 0;
+	padding: clamp(48px, calc(6.522vw - 17.22px), 108px) 0;
 	background: var(--wf-bg);
 }
 
@@ -336,7 +336,7 @@ summary:focus-visible {
 
 .principle {
 	position: relative;
-	min-height: 245px;
+	min-height: clamp(190px, calc(5.978vw + 130.22px), 245px);
 	padding: 0 clamp(28px, 4vw, 52px);
 	text-align: center;
 }
@@ -399,13 +399,13 @@ summary:focus-visible {
 }
 
 .foundation-cards {
-	padding: clamp(74px, 9vw, 112px) 0;
+	padding: clamp(54px, calc(6.304vw - 9.04px), 112px) 0;
 	background: var(--wf-surface);
 	border-block: 1px solid rgb(85 216 255 / 7%);
 }
 
 .foundation-card {
-	min-height: 280px;
+	min-height: clamp(210px, calc(7.609vw + 133.91px), 280px);
 	padding: 0 clamp(26px, 4vw, 50px);
 	text-align: center;
 }
@@ -417,8 +417,8 @@ summary:focus-visible {
 .foundation-card__icon {
 	display: grid;
 	place-items: center;
-	width: 96px;
-	height: 96px;
+	width: clamp(76px, calc(2.174vw + 54.26px), 96px);
+	height: clamp(76px, calc(2.174vw + 54.26px), 96px);
 	margin: 0 auto;
 	border: 2px solid currentColor;
 	border-radius: 50%;
@@ -441,7 +441,7 @@ summary:focus-visible {
 	grid-template-columns: auto 1fr;
 	align-items: center;
 	gap: 34px;
-	padding-block: 52px;
+	padding-block: clamp(28px, calc(2.609vw + 1.91px), 52px);
 	border-block-start: 1px solid var(--wf-border);
 }
 
@@ -468,7 +468,10 @@ summary:focus-visible {
 
 .participate {
 	position: relative;
-	padding: clamp(96px, 12vw, 150px) 0 clamp(64px, 8vw, 96px);
+	padding:
+		clamp(64px, calc(9.348vw - 29.48px), 150px)
+		0
+		clamp(42px, calc(5.87vw - 16.7px), 96px);
 	text-align: center;
 }
 
@@ -491,7 +494,7 @@ summary:focus-visible {
 
 .participate__actions {
 	flex-direction: column;
-	margin-top: 34px;
+	margin-top: clamp(24px, calc(1.087vw + 13.13px), 34px);
 }
 
 .participate__actions .button {
@@ -515,10 +518,42 @@ summary:focus-visible {
 
 .participate__note {
 	max-width: 740px;
-	margin-top: 54px !important;
-	padding-top: 28px;
+	margin-top: clamp(30px, calc(2.609vw + 3.91px), 54px) !important;
+	padding-top: clamp(18px, calc(1.087vw + 7.13px), 28px);
 	border-top: 1px solid var(--wf-border);
 	font-size: 0.88rem !important;
+}
+
+@media (min-width: 1001px) {
+	.hero {
+		padding-block:
+			clamp(56px, 6svh, 72px)
+			clamp(56px, 7svh, 80px);
+	}
+
+	.hero h1 {
+		max-width: 1020px;
+		font-size: clamp(3.6rem, 5.2vw, 4.8rem);
+		line-height: 1.1;
+	}
+
+	.hero p {
+		margin-top: clamp(22px, 3svh, 30px);
+		font-size: clamp(1rem, 1.25vw, 1.2rem);
+		line-height: 1.75;
+	}
+
+	.hero .desktop-break {
+		display: none;
+	}
+
+	.hero__actions {
+		margin-top: clamp(24px, 3svh, 32px);
+	}
+
+	.button {
+		min-height: 58px;
+	}
 }
 
 @media (min-width: 781px) and (max-width: 1000px) {
@@ -528,6 +563,10 @@ summary:focus-visible {
 
 	.hero {
 		padding-block: 52px 68px;
+	}
+
+	.hero h1 {
+		font-size: clamp(3rem, 6.3vw, 3.5rem);
 	}
 
 	.hero p {
@@ -698,7 +737,7 @@ summary:focus-visible {
 	}
 
 	.hero {
-		padding-top: 62px;
+		padding-block: 52px 48px;
 	}
 
 	.hero h1 {
