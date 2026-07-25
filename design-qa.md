@@ -10,6 +10,8 @@
 - Latest implementation screenshot: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-lp-fix2\final-864x1100.png`
 - Latest source/implementation comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-lp-fix2\comparison-reference-final-responsive-864.png`
 - Above-the-fold before/after comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-lp-fix2\comparison-before-final-1280x720.png`
+- Latest fault-geometry implementation screenshots: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v2\final-browser-864x1100.png`, `final-browser-1280x720.png`, and `final-browser-390x844.png`
+- Fault-geometry source/current/final comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v2\comparison-target-current-final.png`
 - `view_image` inspection completed for the accepted concept, latest implementation screenshot, and combined comparison image.
 - Source pixels: `864 × 1821`. Implementation pixels: `849 × 1081` for the `864 × 1100` CSS viewport and `1265 × 712` for the `1280 × 720` CSS viewport. Browser `devicePixelRatio` was `1`; no density resampling was required. The in-app browser capture excludes its scrollbar/chrome from the saved bitmap.
 
@@ -87,6 +89,29 @@ Measured implementation section boundaries at the native target width:
 - GitHub participation and English documentation links point to their real destinations.
 - Skip link, semantic headings and regions, image alt text, focus-visible states, and reduced-motion handling are present.
 - Browser console warnings/errors on the LP: none. The only console entry was the expected informational message that no Mermaid diagrams exist on the landing page.
+
+## Follow-up iteration: fault geometry
+
+**Earlier finding**
+
+- `[P1]` The first production landscape added several independent hills and dips across the green, cyan, blue, and purple boundaries. The accepted concept uses one broad, shallow central basin above the connection and one broad, shallow central rise below it; the outer thirds remain nearly horizontal. The production image therefore felt substantially more distorted than the source.
+
+**Fix**
+
+- Rebuilt the landscape from the accepted concept crop as the geometry reference while retaining the existing lime, cyan, blue, purple, topographic, and network textures.
+- Removed the secondary side waves and kept one continuous central dip/rise.
+- Trimmed the generated source by `42px` at the top so the green terrain reaches the upper edge at both sides while the dark gap remains shallow only around the center.
+- Exported a production WebP at `1824 × 862`, quality `85`, as `/public/lp/connection-landscape-v2.webp`.
+- Kept the previous `/public/lp/connection-landscape.webp` asset unchanged for rollback.
+
+**Post-fix evidence**
+
+- The three-way source/current/final comparison was inspected directly. The old middle image visibly contains multiple waves; the final image returns to one shallow central basin and one central rise.
+- Exact CSS `object-fit: cover` crops were reproduced and inspected at the accepted `864px` width and the reported `1280px` desktop width: `comparison-target-final-css-crop-864.png` and `comparison-target-final-css-crop-1280.png`.
+- The actual built page was captured and inspected in the in-app browser at `1280 × 720`, `864 × 1100`, and `390 × 844`. The revised terrain is visible above the fold on desktop and mobile, remains centered, and does not introduce a second silhouette wave.
+- The focused mobile crop preserves the single basin/rise. Its narrower viewport naturally removes the long horizontal shoulders, but it does not reintroduce the previous multi-wave shape.
+- Typography, spacing, copy, controls, and section boundaries are unchanged by this iteration; only the landscape source asset changed.
+- Remaining differences from the concept are non-material texture/color variations: the final green is slightly more yellow, the purple slightly more saturated, and the glow edge slightly thinner toward the sides.
 
 ## Build verification
 
