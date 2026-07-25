@@ -47,7 +47,7 @@ Measured implementation section boundaries at the native target width:
 ## Intentional deviations
 
 - The existing favicon geometry is used for the brand mark instead of shipping the provisional concept logo.
-- The terrain visual is a generated production asset rather than a cropped concept screenshot.
+- The terrain visual now uses an exact production crop from the accepted concept, exported separately from the surrounding mockup UI.
 - `フォーク可能性` is described as a design principle, not as a legal reuse promise, because the repository license is still `TBD`.
 - The page is longer than the static concept to support real responsive copy, a precise GitHub participation route, and the unfinished-design disclaimer.
 - Mermaid was removed from the public landing page only. Mermaid documents and the integration remain available under `/diagrams/`.
@@ -112,6 +112,33 @@ Measured implementation section boundaries at the native target width:
 - The focused mobile crop preserves the single basin/rise. Its narrower viewport naturally removes the long horizontal shoulders, but it does not reintroduce the previous multi-wave shape.
 - Typography, spacing, copy, controls, and section boundaries are unchanged by this iteration; only the landscape source asset changed.
 - Remaining differences from the concept are non-material texture/color variations: the final green is slightly more yellow, the purple slightly more saturated, and the glow edge slightly thinner toward the sides.
+
+## Follow-up iteration: exact source fidelity
+
+**Earlier finding**
+
+- `[P2]` The geometry-only v2 correction removed the extra waves, but it was still a regenerated interpretation. Compared directly with the accepted concept, its green and purple were more saturated, the white glow was stronger, the texture paths differed, and `object-fit: cover` removed the green upper boundary on wide screens. The result therefore still looked slightly different even though the broad silhouette was correct.
+
+**Fix**
+
+- Extracted the accepted concept's terrain directly from `y = 490` at its native `864 × 392` source size.
+- Upscaled that exact crop by `2×` with Lanczos resampling and exported `/public/lp/connection-landscape-v3.webp` at `1728 × 784`, WebP quality `92`.
+- Matched the desktop/tablet container to the source ratio with `aspect-ratio: 864 / 392`; the image no longer loses its upper or lower boundary at wide viewports.
+- Preserved the existing focused mobile crop at `640px` and below so the central connection remains legible in the first viewport.
+- Kept both earlier production assets unchanged for rollback.
+
+**Post-fix visual evidence**
+
+- Source visual truth: `C:\Users\gnish\.codex\generated_images\019f93a2-e933-7443-93b6-9d02039547ad\call_nv3fCrxDA8jN2wL5sbu7b1qk.png`
+- Focused same-size comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v3\comparison-reference-implementation-864.png`
+- Browser implementation captures: `final-ratio-browser-864x1100.png`, `final-ratio-browser-1280x720.png`, `final-ratio-browser-1920x1034.png`, and `final-ratio-browser-390x844.png` in the same QA directory.
+- At the `864 × 1100` CSS viewport, the source region is `864 × 392`; the browser content is `849px` wide and renders the terrain at `848.67 × 385.04` CSS pixels. The focused comparison normalizes both sides to `849 × 385`.
+- Browser `devicePixelRatio` reported `1.5`; the in-app screenshot output uses the browser content pixel size, so the focused evidence was normalized to the implementation bitmap rather than compared at mixed density.
+- At `1280 × 720`, the real asset loaded at natural size `1728 × 784` and rendered at `1264.67 × 573.78`; `scrollWidth` equals `clientWidth` (`1265px`).
+- At `1920 × 1034`, the full upper green boundary remains visible instead of being vertically cropped away.
+- At `390 × 844`, the existing mobile crop keeps the central valley visible above the fold; `scrollWidth` equals `clientWidth` (`375px`).
+- Responsive checks at `1001`, `1000`, `781`, `780`, `390`, and `320px` found complete image loading and no horizontal overflow.
+- Required fidelity surfaces: typography, copy, controls, icons, colors outside the image, and section order are unchanged. The terrain now matches the source crop, palette, texture, light band, and silhouette directly. No actionable P0/P1/P2 differences remain.
 
 ## Build verification
 

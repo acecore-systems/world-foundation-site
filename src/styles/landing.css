@@ -311,7 +311,8 @@ summary:focus-visible {
 
 .connection-landscape {
 	width: 100%;
-	height: clamp(390px, calc(26.087vw + 129.13px), 630px);
+	aspect-ratio: 864 / 392;
+	height: auto;
 	overflow: hidden;
 	background: var(--wf-bg);
 }
@@ -583,7 +584,7 @@ summary:focus-visible {
 	}
 
 	.connection-landscape {
-		height: 390px;
+		height: auto;
 	}
 
 	.principle-flow {
@@ -780,6 +781,7 @@ summary:focus-visible {
 	}
 
 	.connection-landscape {
+		aspect-ratio: auto;
 		height: 420px;
 	}
 
