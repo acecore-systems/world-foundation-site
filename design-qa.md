@@ -7,8 +7,8 @@
 - Browser method: Codex in-app browser against the static production build at `http://127.0.0.1:4399/`
 - Screenshot method: in-app browser viewport screenshots with `tab.screenshot({ fullPage: false })`
 - Full-page fallback: the in-app browser full-page capture tiled the page incorrectly, so the page was checked with top, middle, and bottom viewport captures plus DOM section measurements.
-- Latest implementation screenshot: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-lp-fix2\final-864x1100.png`
-- Latest source/implementation comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-lp-fix2\comparison-reference-final-responsive-864.png`
+- Latest implementation screenshot: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v4\browser-864x1100-viewport.png`
+- Latest source/implementation comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v4\comparison-top-reference-implementation-864.png`
 - Above-the-fold before/after comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-lp-fix2\comparison-before-final-1280x720.png`
 - Latest fault-geometry implementation screenshots: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v2\final-browser-864x1100.png`, `final-browser-1280x720.png`, and `final-browser-390x844.png`
 - Fault-geometry source/current/final comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v2\comparison-target-current-final.png`
@@ -139,6 +139,34 @@ Measured implementation section boundaries at the native target width:
 - At `390 × 844`, the existing mobile crop keeps the central valley visible above the fold; `scrollWidth` equals `clientWidth` (`375px`).
 - Responsive checks at `1001`, `1000`, `781`, `780`, `390`, and `320px` found complete image loading and no horizontal overflow.
 - Required fidelity surfaces: typography, copy, controls, icons, colors outside the image, and section order are unchanged. The terrain now matches the source crop, palette, texture, light band, and silhouette directly. No actionable P0/P1/P2 differences remain.
+
+## Follow-up iteration: high-resolution source fidelity
+
+**Earlier finding**
+
+- `[P2]` The source-exact v3 asset was exported at `1728 × 784`, but its effective detail still came from the accepted concept's native `864 × 392` crop. At wide and high-density viewports it therefore preserved the right geometry while looking visibly soft and coarse.
+
+**Fix**
+
+- Kept the accepted crop as the low-frequency color and geometry truth, including every terrain boundary and the central white connection band.
+- Added only high-frequency texture detail from an ImageGen remaster, masking strong source edges so the green/cyan basin, white band, and purple rise could not move.
+- Exported responsive WebP sources at `1860 × 844` (`719,914` bytes) and `3720 × 1688` (`1,651,750` bytes), quality `92`.
+- Added `srcset` and `sizes="(max-width: 640px) 210vw, 100vw"` so normal desktop/mobile displays use the `1860w` source and wide/high-density displays use the `3720w` source.
+- Kept v3 and the earlier assets unchanged for rollback.
+
+**Post-fix visual evidence**
+
+- Full-view same-viewport comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v4\comparison-top-reference-implementation-864.png`
+- Focused source/asset comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v4\compare-reference-hybrid.png`
+- Focused `1×` detail comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v4\compare-detail-central-1x.png`
+- Wide-screen v3/v4 before-and-after detail comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v4\comparison-v3-v4-detail-1920.png`
+- Browser captures: `browser-1920x1034.png`, `browser-1280x720.png`, `browser-864x1100-viewport.png`, and `browser-390x844.png` in the same QA directory.
+- At the `1920 × 1034` CSS viewport with browser `devicePixelRatio = 1.5`, the browser selected the `3720w` source and rendered it at `1904.67 × 864.15` CSS pixels. The texture and contour lines remain crisp with no visible compression blocks or edge halos.
+- At `1280 × 720`, the browser selected the `1860w` source and rendered it at `1264.67 × 573.78` CSS pixels.
+- At `390 × 844`, the browser selected the `1860w` source for the `210vw` focused crop and rendered it at `786.79 × 420` CSS pixels. The central basin and connection glow remain visible without horizontal document overflow.
+- At the source comparison width, the accepted image and implementation are both normalized to `864 × 1100` pixels at density `1`. The focused asset comparison normalizes the native `864 × 392` crop and the final asset to equal dimensions before judgment.
+- The full-view and focused comparisons were inspected directly. The boundary geometry and palette remain source-faithful, while the contour lines, grain, and network texture are materially sharper. No actionable P0/P1/P2 image-quality difference remains.
+- Required fidelity surfaces: fonts/typography, spacing/layout rhythm, tokens outside the image, copy/content, controls, icons, and section order are unchanged. The responsive image is complete, `scrollWidth` equals `clientWidth` at the checked `864px` viewport, and the browser console has no warnings or errors.
 
 ## Build verification
 
