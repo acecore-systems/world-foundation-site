@@ -168,6 +168,60 @@ Measured implementation section boundaries at the native target width:
 - The full-view and focused comparisons were inspected directly. The boundary geometry and palette remain source-faithful, while the contour lines, grain, and network texture are materially sharper. No actionable P0/P1/P2 image-quality difference remains.
 - Required fidelity surfaces: fonts/typography, spacing/layout rhythm, tokens outside the image, copy/content, controls, icons, and section order are unchanged. The responsive image is complete, `scrollWidth` equals `clientWidth` at the checked `864px` viewport, and the browser console has no warnings or errors.
 
+## Follow-up iteration: clean full regeneration
+
+**Earlier finding**
+
+- `[P1]` The v4 responsive export solved pixel dimensions but retained and amplified the previous source's high-frequency generated texture. The fault geometry was closer to the accepted concept, yet grain, stippling, embossed-looking contour detail, and noisy transitions still made the landscape itself look rough. Resolution alone could not fix the underlying generation quality.
+
+**Fix**
+
+- Discarded the hybrid remaster/upscale approach and regenerated the complete landscape from a blank canvas.
+- Used the accepted concept only as a composition reference, with normalized boundary constraints: green/cyan shoulders at approximately `24%`, a broad central navy notch near `40%`, a single white connection band near `48–55%`, and blue/purple outer shoulders near `78%` rising once toward the center near `65%`.
+- Explicitly prohibited grain, stippling, speckle, distress, embossing, edge halos, jagged boundaries, extra waves, oversaturation, text, logos, and watermarks.
+- Selected the cleanest of several independent candidates and exported it directly—without blending detail from any earlier asset—as WebP quality `96` at `1860 × 844` (`155,154` bytes) and `3720 × 1688` (`415,030` bytes).
+- Updated the existing responsive `srcset` to use `/public/lp/connection-landscape-v5-1860.webp` and `/public/lp/connection-landscape-v5-3720.webp`. Earlier assets remain available for rollback.
+
+**Post-fix visual evidence**
+
+- Selected generated source: `C:\Users\gnish\.codex\generated_images\019f93a2-e933-7443-93b6-9d02039547ad\call_YAQCXa2KjufyWKWysOTuzLG6.png`
+- Candidate comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v5\comparison-reference-regenerated-options.png`
+- Focused source/final comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v5\comparison-reference-selected-v5.png`
+- Full upper-page comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v5\comparison-top-reference-implementation-v5.png`
+- Browser captures: `browser-v5-1920x1034.png`, `browser-v5-1280x720.png`, `browser-v5-864x1100-reloaded.png`, and `browser-v5-390x844.png` in the same QA directory.
+- At `1920 × 1034`, the browser selected the `3720w` source and rendered it at approximately `1904.67 × 864.15` CSS pixels. At `1280 × 720`, it rendered at approximately `1264.67 × 573.78`.
+- At the accepted `864 × 1100` reference viewport, the browser selected the `1860w` source and rendered it at approximately `848.67 × 385.04`, beginning at `y ≈ 491.70`.
+- At `390 × 844`, the focused mobile presentation rendered the image at approximately `786.79 × 420`; the central basin and white connection remain visible in the first viewport and the document itself has no horizontal overflow.
+- The final `864px` runtime check reports a complete v5 image, `scrollWidth = clientWidth = 849px`, and no browser warnings or errors.
+- Direct inspection of the full-view and focused comparisons confirms smooth matte color fields, clean continuous edges, and no visible grain, speckle, jaggedness, glow halo, or compression blocks. The intended single broad basin/rise geometry is preserved.
+- Required fidelity surfaces outside the landscape—typography, spacing, copy, controls, icons, section order, and responsive behavior—are unchanged. A subsequent independent audit promoted the thinner white band, flatter texture, and boundary drift to `[P2]`; v5 was therefore rejected and is not shipped.
+
+## Follow-up iteration: geometry-faithful clean regeneration
+
+**Earlier finding**
+
+- `[P2]` The first clean redraw removed the reported grain but overcorrected into a flat, simplified material. It lost much of the accepted concept's contour and polygon information, while the top notch, green/cyan shoulders, white band, and blue/purple rise still drifted by visible amounts.
+
+**Fix**
+
+- Generated multiple fresh candidates from the accepted `864 × 392` crop, using it as strict geometry and information-density truth rather than as raster texture to upscale.
+- Selected a candidate whose boundaries align to the source: top navy notch around `y = 40–42`, green/cyan shoulders around `y = 96–98` with one central basin around `y = 155–157`, white connection around `y = 187–217`, and blue/purple shoulders around `y = 304–307` with one central rise around `y = 247–250`.
+- Re-rendered the color fields and technical details as clean matte surfaces plus antialiased contour/polygon paths. A final restraint pass reduced line contrast without moving the geometry.
+- No earlier generated raster texture was blended, sharpened, or upscaled into the selected source.
+- Exported responsive WebP sources at `1860 × 844` (`395,378` bytes) and `3720 × 1688` (`942,446` bytes), quality `96`.
+- Updated the responsive component to `/public/lp/connection-landscape-v6-1860.webp` and `/public/lp/connection-landscape-v6-3720.webp`. The rejected untracked v5 project exports were removed.
+
+**Post-fix visual evidence**
+
+- Selected regenerated source: `C:\Users\gnish\.codex\generated_images\019f93a2-e933-7443-93b6-9d02039547ad\call_S1fnOxYvTShCsQl3Gqn3YnWD.png`
+- Same-size source/final comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v6\comparison-reference-v6.png`
+- Upper-page integration comparison: `C:\Users\gnish\.codex\visualizations\2026\07\24\019f93a2-e933-7443-93b6-9d02039547ad\qa-world-foundation-landscape-v6\comparison-top-reference-implementation-v6.png`
+- The upper-page comparison uses the previously verified `849 × 1081` browser capture and replaces only its unchanged `849 × 385` landscape slot with the v6 source. It is a deterministic integration proof, not a fresh browser screenshot.
+- Independent visual audit: P0 none, P1 none, P2 none. Remaining `[P3]` differences are approximately `1.5–2×` denser clean contour lines, a slightly coarser purple mesh, a maximum `6px` shallow point on one green/cyan shoulder, and a central glow extending about `2–3px` farther. These do not read as grain or distortion.
+- The source/final comparison confirms the white band's position and thickness, upper/lower silhouettes, palette, and single basin/rise composition remain aligned. No visible grain, speckle, jagged edge, compression block, or excessive sharpening remains.
+- `npm run build` completed all `95` static pages. The running local preview returned HTTP `200` for `/` and for `/lp/connection-landscape-v6-1860.webp`; the served page references the v6 asset.
+- A fresh automated browser reload was unavailable after the preview restart, so no unverified live-browser claim is made for v6. Layout and responsive image attributes are unchanged from the browser-verified v5 iteration; only the source filenames and regenerated pixels changed.
+
 ## Build verification
 
 - `volta run --node 24.18.0 npm run build`
