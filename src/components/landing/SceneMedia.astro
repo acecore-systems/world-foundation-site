@@ -1,0 +1,20 @@
+---
+interface Props {
+	src: string;
+	alt?: string;
+	position?: string;
+	eager?: boolean;
+}
+
+const { src, alt = '', position = 'center', eager = false } = Astro.props;
+---
+
+<img
+	class="scene-media"
+	src={src}
+	alt={alt}
+	style={`--scene-position: ${position}`}
+	loading={eager ? 'eager' : 'lazy'}
+	fetchpriority={eager ? 'high' : 'auto'}
+	decoding="async"
+/>

@@ -1,0 +1,13 @@
+---
+interface Props {
+	lines: readonly [string, string];
+}
+
+const { lines } = Astro.props;
+---
+
+<div class="act-marker" aria-hidden="true">
+	<span class="act-marker__dot"></span>
+	<span class="act-marker__title">{lines[0]}</span>
+	<span class="act-marker__subtitle">{lines[1]}</span>
+</div>

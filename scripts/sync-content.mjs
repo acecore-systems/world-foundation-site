@@ -13,7 +13,7 @@ const siteBasePath = normalizeBasePath(process.env.SITE_BASE_PATH || '');
 const staticAssetSources = new Set();
 
 const pages = [
-	{ src: 'README.md', dest: 'index.md', title: 'World Foundation設計', lang: 'ja' },
+	{ src: 'README.md', dest: 'docs/overview.md', title: 'World Foundation設計の全体像', lang: 'ja' },
 	{ src: 'CONTRIBUTING.md', dest: 'policies/contributing.md', title: '貢献ガイド', lang: 'ja' },
 	{ src: 'GOVERNANCE.md', dest: 'policies/governance.md', title: '運営方針', lang: 'ja' },
 	{ src: 'SAFETY.md', dest: 'policies/safety.md', title: '安全方針', lang: 'ja' },
@@ -175,7 +175,12 @@ const pages = [
 		title: '拡張モジュール関係',
 		lang: 'ja',
 	},
-	{ src: 'docs/en/README.md', dest: 'en/index.md', title: 'World Foundation Design Documents', lang: 'en' },
+	{
+		src: 'docs/en/README.md',
+		dest: 'en/docs/overview.md',
+		title: 'World Foundation Design Overview',
+		lang: 'en',
+	},
 	{ src: 'docs/en/README.md', dest: 'en/docs/index.md', title: 'World Foundation Design Documents', lang: 'en' },
 	{ src: 'docs/en/00-vision.md', dest: 'en/docs/00-vision.md', title: 'Vision', lang: 'en' },
 	{ src: 'docs/en/01-principles.md', dest: 'en/docs/01-principles.md', title: 'Principles', lang: 'en' },
