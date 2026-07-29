@@ -67,7 +67,6 @@ const REMOVE_SELECTORS = [
 	'aside',
 	'footer',
 	'pre',
-	'code',
 ].join(',');
 
 export async function buildSearchCorpus({

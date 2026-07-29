@@ -3,6 +3,7 @@
   "name": "world-foundation-site",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["enable_request_signal"],
   "ai": {
     "binding": "AI",
     "remote": true

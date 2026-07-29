@@ -173,6 +173,16 @@ test('Acecore account・production確認・corpus artifact identityをnetwork前
 		}),
 		/requires full VECTORIZE_EXPECTED/,
 	);
+	await assert.rejects(
+		syncVectorize({
+			...liveSyncOptions(corpus, corpusFile, {
+				trustedAutomation: false,
+			}),
+			fetchImpl,
+			logger: silentLogger,
+		}),
+		/requires GitHub Actions mode/,
+	);
 	assert.equal(networkCalls, 0);
 });
 
@@ -217,7 +227,7 @@ test('source・vector・日英localeの最低件数とvector上限を検証す�
 	);
 });
 
-test('既存indexとの差分だけをembed・upsert・deleteしてmutation完了を待つ', async () => {
+test('既存IDも全件再embed・upsertして同一ID破損を修復し、mutation完了を待つ', async () => {
 	const corpus = createCorpus();
 	const corpusFile = await writeCorpus(corpus);
 	const newChunk = corpus.chunks.at(-1);
@@ -228,6 +238,7 @@ test('既存indexとの差分だけをembed・upsert・deleteしてmutation完�
 	];
 	const calls = [];
 	let listCalls = 0;
+	let infoCalls = 0;
 
 	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
@@ -249,13 +260,19 @@ test('既存indexとの差分だけをembed・upsert・deleteしてmutation完�
 		}
 		if (url.includes('/ai/run/')) {
 			assert.ok(url.endsWith('/ai/run/@cf/baai/bge-m3'));
-			assert.deepEqual(JSON.parse(init.body).text, [newChunk.text]);
-			return cloudflareResponse({ data: [embedding] });
+			const texts = JSON.parse(init.body).text;
+			return cloudflareResponse({
+				data: Array.from({ length: texts.length }, () => embedding),
+			});
 		}
 		if (url.endsWith('/upsert')) {
 			const body = await init.body.get('vectors').text();
-			const vector = JSON.parse(body.trim());
-			assert.equal(vector.id, newChunk.id);
+			const vectors = body
+				.trim()
+				.split('\n')
+				.map((line) => JSON.parse(line));
+			assert.equal(vectors.length, corpus.vectorCount);
+			const vector = vectors.find(({ id }) => id === newChunk.id);
 			assert.equal(vector.values.length, 1024);
 			assert.equal(vector.namespace, newChunk.namespace);
 			return cloudflareResponse({ mutationId: 'mutation-upsert' });
@@ -263,6 +280,13 @@ test('既存indexとの差分だけをembed・upsert・deleteしてmutation完�
 		if (url.endsWith('/delete_by_ids')) {
 			assert.deepEqual(JSON.parse(init.body), { ids: [staleId] });
 			return cloudflareResponse({ mutationId: 'mutation-delete' });
+		}
+		if (url.endsWith('/info')) {
+			infoCalls += 1;
+			return cloudflareResponse({
+				processedUpToMutation:
+					infoCalls === 1 ? 'mutation-upsert' : 'mutation-delete',
+			});
 		}
 		throw new Error(`Unexpected request: ${url}`);
 	};
@@ -274,12 +298,17 @@ test('既存indexとの差分だけをembed・upsert・deleteしてmutation完�
 	});
 
 	assert.equal(result.existing, 80);
-	assert.equal(result.upserted, 1);
+	assert.equal(result.upserted, corpus.vectorCount);
 	assert.equal(result.deleted, 1);
 	assert.equal(result.mutationId, 'mutation-delete');
 	assert.equal(result.verifiedVectorCount, corpus.vectorCount);
 	assert.equal(listCalls, 2);
-	assert.equal(calls.filter(({ url }) => url.includes('/ai/run/')).length, 1);
+	assert.equal(calls.filter(({ url }) => url.includes('/ai/run/')).length, 3);
+	assert.ok(
+		calls.findIndex(({ url }) => url.endsWith('/info')) <
+			calls.findIndex(({ url }) => url.endsWith('/delete_by_ids')),
+		'upsert mutation must be processed before stale IDs are deleted',
+	);
 });
 
 test('embeddingを32件、HTTP upsertを200件以下に分割する', async () => {
@@ -329,6 +358,11 @@ test('embeddingを32件、HTTP upsertを200件以下に分割する', async () =
 				mutationId: `mutation-upsert-${mutationNumber}`,
 			});
 		}
+		if (url.endsWith('/info')) {
+			return cloudflareResponse({
+				processedUpToMutation: `mutation-upsert-${mutationNumber}`,
+			});
+		}
 		throw new Error(`Unexpected request: ${url}`);
 	};
 
@@ -346,23 +380,41 @@ test('embeddingを32件、HTTP upsertを200件以下に分割する', async () =
 	assert.equal(listCalls, 3);
 });
 
-test('同じcorpusで再同期してもembeddingとmutationを行わない', async () => {
+test('同じcorpusの再同期でも全件を修復upsertする', async () => {
 	const corpus = createCorpus();
 	const corpusFile = await writeCorpus(corpus);
-	let mutationRequested = false;
+	let embeddingCount = 0;
+	let upsertCount = 0;
+	let listCalls = 0;
 
-	const fetchImpl = async (input) => {
+	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
 		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
+			listCalls += 1;
 			return cloudflareResponse({
 				vectors: corpus.chunks.map(({ id }) => ({ id })),
 				isTruncated: false,
 			});
 		}
-		mutationRequested = true;
+		if (url.includes('/ai/run/')) {
+			const count = JSON.parse(init.body).text.length;
+			embeddingCount += count;
+			return cloudflareResponse({
+				data: Array.from({ length: count }, () => embedding),
+			});
+		}
+		if (url.endsWith('/upsert')) {
+			upsertCount += 1;
+			return cloudflareResponse({ mutationId: 'mutation-repair' });
+		}
+		if (url.endsWith('/info')) {
+			return cloudflareResponse({
+				processedUpToMutation: 'mutation-repair',
+			});
+		}
 		throw new Error(`Unexpected request: ${url}`);
 	};
 
@@ -372,10 +424,12 @@ test('同じcorpusで再同期してもembeddingとmutationを行わない', asy
 		logger: silentLogger,
 	});
 
-	assert.equal(result.upserted, 0);
+	assert.equal(result.upserted, corpus.vectorCount);
 	assert.equal(result.deleted, 0);
-	assert.equal(result.mutationId, null);
-	assert.equal(mutationRequested, false);
+	assert.equal(result.mutationId, 'mutation-repair');
+	assert.equal(embeddingCount, corpus.vectorCount);
+	assert.equal(upsertCount, 1);
+	assert.equal(listCalls, 2);
 });
 
 test('20%を超えるdeleteを既定で拒否し明示override時だけ許可する', async () => {
@@ -390,6 +444,7 @@ test('20%を超えるdeleteを既定で拒否し明示override時だけ許可す
 	];
 	let deleteRequests = 0;
 	let listCalls = 0;
+	let infoCalls = 0;
 
 	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
@@ -411,6 +466,22 @@ test('20%を超えるdeleteを既定で拒否し明示override時だけ許可す
 			deleteRequests += 1;
 			assert.deepEqual(JSON.parse(init.body), { ids: staleIds });
 			return cloudflareResponse({ mutationId: 'mutation-delete' });
+		}
+		if (url.includes('/ai/run/')) {
+			const count = JSON.parse(init.body).text.length;
+			return cloudflareResponse({
+				data: Array.from({ length: count }, () => embedding),
+			});
+		}
+		if (url.endsWith('/upsert')) {
+			return cloudflareResponse({ mutationId: 'mutation-upsert' });
+		}
+		if (url.endsWith('/info')) {
+			infoCalls += 1;
+			return cloudflareResponse({
+				processedUpToMutation:
+					infoCalls === 1 ? 'mutation-upsert' : 'mutation-delete',
+			});
 		}
 		throw new Error(`Unexpected request: ${url}`);
 	};
@@ -490,6 +561,11 @@ test('mutation後に余計な並行IDが残れば厳密収束をtimeoutで拒否
 		}
 		if (url.endsWith('/upsert')) {
 			return cloudflareResponse({ mutationId: 'mutation-upsert' });
+		}
+		if (url.endsWith('/info')) {
+			return cloudflareResponse({
+				processedUpToMutation: 'mutation-upsert',
+			});
 		}
 		throw new Error(`Unexpected request: ${url}`);
 	};
@@ -606,6 +682,7 @@ function liveSyncOptions(corpus, corpusFile, overrides = {}) {
 	return {
 		accountId: ACECORE_CLOUDFLARE_ACCOUNT_ID,
 		apiToken: 'token',
+		trustedAutomation: true,
 		target: 'preview',
 		expectedSiteCommit: corpus.siteCommit,
 		expectedContentCommit: corpus.contentCommit,

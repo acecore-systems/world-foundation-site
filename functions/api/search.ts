@@ -10,6 +10,7 @@ const RATE_LIMIT_WINDOW_SECONDS = 60
 const RATE_LIMIT_RETENTION_SECONDS = 600
 const CLIENT_RATE_LIMIT = 20
 const GLOBAL_RATE_LIMIT = 300
+const RATE_LIMIT_CLEANUP_BATCH_SIZE = 100
 const CLIENT_ID_HEADER = 'X-World-Foundation-Search-Client'
 const CLIENT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -105,18 +106,18 @@ export const onRequestPost: PagesFunction<SemanticSearchEnv> = async ({
     let clientAllowed = false
     let globalAllowed = false
     try {
-      await deleteExpiredRateLimits(SEARCH_RATE_LIMIT_DB)
-      const clientKey = await createClientRateLimitKey(request)
-      clientAllowed = await consumeRateLimit(
+      globalAllowed = await consumeRateLimit(
         SEARCH_RATE_LIMIT_DB,
-        `client:${clientKey}`,
-        CLIENT_RATE_LIMIT,
+        'global',
+        GLOBAL_RATE_LIMIT,
       )
-      if (clientAllowed) {
-        globalAllowed = await consumeRateLimit(
+      if (globalAllowed) {
+        await deleteExpiredRateLimits(SEARCH_RATE_LIMIT_DB)
+        const clientKey = await createClientRateLimitKey(request)
+        clientAllowed = await consumeRateLimit(
           SEARCH_RATE_LIMIT_DB,
-          'global',
-          GLOBAL_RATE_LIMIT,
+          `client:${clientKey}`,
+          CLIENT_RATE_LIMIT,
         )
       }
     } catch (error) {
@@ -137,11 +138,20 @@ export const onRequestPost: PagesFunction<SemanticSearchEnv> = async ({
 
     let embeddingResult: unknown
     try {
-      embeddingResult = await AI.run(EMBEDDING_MODEL, {
-        text: [query],
-        truncate_inputs: true,
-      })
+      embeddingResult = await AI.run(
+        EMBEDDING_MODEL,
+        {
+          text: [query],
+          truncate_inputs: true,
+        },
+        {
+          signal: request.signal,
+        },
+      )
     } catch (error) {
+      if (request.signal.aborted || isAbortError(error)) {
+        return errorResponse('request_cancelled', 499, requestId, startedAt)
+      }
       logSearchError(
         requestId,
         locale,
@@ -155,6 +165,9 @@ export const onRequestPost: PagesFunction<SemanticSearchEnv> = async ({
     if (!embedding) {
       logSearchError(requestId, locale, 'embedding', 'invalid_embedding')
       return errorResponse('provider_error', 502, requestId, startedAt)
+    }
+    if (request.signal.aborted) {
+      return errorResponse('request_cancelled', 499, requestId, startedAt)
     }
 
     let queryResult: unknown
@@ -331,9 +344,26 @@ async function consumeRateLimit(
 async function deleteExpiredRateLimits(database: D1Database): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   await database
-    .prepare('DELETE FROM semantic_search_rate_limits WHERE expires_at < ?1')
-    .bind(now)
+    .prepare(
+      `DELETE FROM semantic_search_rate_limits
+       WHERE rowid IN (
+         SELECT rowid
+         FROM semantic_search_rate_limits
+         WHERE expires_at < ?1
+         ORDER BY expires_at
+         LIMIT ?2
+       )`,
+    )
+    .bind(now, RATE_LIMIT_CLEANUP_BATCH_SIZE)
     .run()
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof DOMException
+      ? error.name === 'AbortError'
+      : error instanceof Error && error.name === 'AbortError'
+  )
 }
 
 function normalizeMinScore(value: string | undefined): number {

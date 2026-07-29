@@ -65,6 +65,7 @@ export async function syncVectorize({
 	corpusFile = DEFAULT_CORPUS_FILE,
 	dryRun = false,
 	allowLargeDelete = false,
+	trustedAutomation = process.env.GITHUB_ACTIONS === 'true',
 	fetchImpl = globalThis.fetch,
 	requestTimeoutMs = REQUEST_TIMEOUT_MS,
 	retryBaseDelayMs = RETRY_BASE_DELAY_MS,
@@ -96,6 +97,11 @@ export async function syncVectorize({
 	if (!dryRun && !apiToken) {
 		throw new Error(
 			'CLOUDFLARE_API_TOKEN is required for a live Vectorize sync.',
+		);
+	}
+	if (!dryRun && !trustedAutomation) {
+		throw new Error(
+			'Live Vectorize sync requires GitHub Actions mode; use --dry-run from local worktrees.',
 		);
 	}
 
@@ -138,7 +144,10 @@ export async function syncVectorize({
 	validateExistingVectorIds(currentIds, indexName);
 
 	const expectedIds = new Set(corpus.chunks.map(({ id }) => id));
-	const chunksToUpsert = corpus.chunks.filter(({ id }) => !currentIds.has(id));
+	// A matching ID does not prove that its vector values or metadata are intact.
+	// Re-upsert the complete trusted corpus so every manual sync also repairs
+	// same-ID corruption.
+	const chunksToUpsert = corpus.chunks;
 	const idsToDelete = [...currentIds].filter((id) => !expectedIds.has(id));
 	validateDeletePlan({
 		currentCount: currentIds.size,
@@ -173,14 +182,45 @@ export async function syncVectorize({
 		);
 	}
 
+	let lastUpsertMutationId = null;
 	for (const vectorBatch of batches(vectorsToUpsert, UPSERT_BATCH_SIZE)) {
-		const mutationId = await upsertVectors(client, indexName, vectorBatch);
-		mutationIds.push(mutationId);
+		lastUpsertMutationId = await upsertVectors(
+			client,
+			indexName,
+			vectorBatch,
+		);
+		mutationIds.push(lastUpsertMutationId);
 	}
 
+	if (lastUpsertMutationId) {
+		await waitForMutationProcessed(
+			client,
+			indexName,
+			lastUpsertMutationId,
+			{
+				timeoutMs: convergenceWaitTimeoutMs,
+				pollIntervalMs: convergencePollIntervalMs,
+				sleepImpl,
+				nowImpl,
+				logger,
+			},
+		);
+	}
+
+	let lastDeleteMutationId = null;
 	for (const idBatch of batches(idsToDelete, DELETE_BATCH_SIZE)) {
-		const mutationId = await deleteVectors(client, indexName, idBatch);
-		mutationIds.push(mutationId);
+		lastDeleteMutationId = await deleteVectors(client, indexName, idBatch);
+		mutationIds.push(lastDeleteMutationId);
+	}
+
+	if (lastDeleteMutationId) {
+		await waitForMutationProcessed(client, indexName, lastDeleteMutationId, {
+			timeoutMs: convergenceWaitTimeoutMs,
+			pollIntervalMs: convergencePollIntervalMs,
+			sleepImpl,
+			nowImpl,
+			logger,
+		});
 	}
 
 	const lastMutationId = mutationIds.at(-1);
@@ -806,6 +846,45 @@ async function waitForExactVectorIds(
 
 	throw new Error(
 		`Vectorize index ${indexName} did not converge to the expected ID set before timeout (missing ${lastMissingCount}, unexpected ${lastUnexpectedCount}).`,
+	);
+}
+
+async function waitForMutationProcessed(
+	client,
+	indexName,
+	expectedMutationId,
+	{ timeoutMs, pollIntervalMs, sleepImpl, nowImpl, logger },
+) {
+	const deadline = nowImpl() + timeoutMs;
+	let lastProcessedMutation = null;
+
+	while (true) {
+		const payload = await client.request(
+			`/vectorize/v2/indexes/${encodeURIComponent(indexName)}/info`,
+		);
+		const info = payload?.result ?? payload;
+		lastProcessedMutation =
+			typeof info?.processedUpToMutation === 'string'
+				? info.processedUpToMutation
+				: null;
+		if (lastProcessedMutation === expectedMutationId) return;
+
+		const remainingMs = deadline - nowImpl();
+		if (remainingMs <= 0) break;
+
+		logger.log(
+			JSON.stringify({
+				event: 'vectorize_mutation_wait',
+				indexName,
+				expectedMutationId,
+				processedUpToMutation: lastProcessedMutation,
+			}),
+		);
+		await sleepImpl(Math.min(pollIntervalMs, remainingMs));
+	}
+
+	throw new Error(
+		`Vectorize index ${indexName} did not process mutation ${expectedMutationId} before timeout (last processed ${lastProcessedMutation || 'none'}).`,
 	);
 }
 

@@ -9,6 +9,7 @@ const queryVector = Array.from({ length: 1024 }, () => 0.01)
 
 test('同一originのJSON検索をlocale namespaceで実行し、安全な上位5件だけ返す', async () => {
   let aiInput
+  let aiOptions
   let queryOptions
   const env = createEnv({
     matches: [
@@ -33,8 +34,9 @@ test('同一originのJSON検索をlocale namespaceで実行し、安全な上位
       searchMatch('too-low', 0.39, '/research/', 'ja'),
     ],
     searchMinScore: undefined,
-    onAiRun(_model, input) {
+    onAiRun(_model, input, options) {
       aiInput = input
+      aiOptions = options
     },
     onQuery(_values, options) {
       queryOptions = options
@@ -76,6 +78,7 @@ test('同一originのJSON検索をlocale namespaceで実行し、安全な上位
     text: ['世界の 協力モデル'],
     truncate_inputs: true,
   })
+  assert.equal(aiOptions.signal instanceof AbortSignal, true)
   assert.deepEqual(queryOptions, {
     namespace: 'ja',
     topK: 15,
@@ -298,13 +301,13 @@ test('Content-Lengthがなくても2KiBを超えた時点でstreamを止める',
   assert.ok(pulls <= 4)
 })
 
-test('client 20/minとglobal 300/minをD1へ渡し、client拒否時はglobalを消費しない', async () => {
+test('global 300/minを先に、client 20/minを次にD1へ渡す', async () => {
   const consumed = []
-  let cleanupCount = 0
+  const cleanups = []
   const env = createEnv({
     clientRateLimitSuccess: false,
-    onCleanup() {
-      cleanupCount += 1
+    onCleanup(entry) {
+      cleanups.push(entry)
     },
     onRateLimit(entry) {
       consumed.push(entry)
@@ -319,10 +322,14 @@ test('client 20/minとglobal 300/minをD1へ渡し、client拒否時はglobalを
     'Retry-After': '60',
   })
 
-  assert.equal(consumed.length, 1)
-  assert.equal(cleanupCount, 1)
-  assert.match(consumed[0].key, /^client:[0-9a-f]{64}$/)
-  assert.equal(consumed[0].limit, 20)
+  assert.equal(consumed.length, 2)
+  assert.equal(cleanups.length, 1)
+  assert.equal(cleanups[0].limit, 100)
+  assert.equal(Number.isInteger(cleanups[0].now), true)
+  assert.equal(consumed[0].key, 'global')
+  assert.equal(consumed[0].limit, 300)
+  assert.match(consumed[1].key, /^client:[0-9a-f]{64}$/)
+  assert.equal(consumed[1].limit, 20)
 })
 
 test('接続IPをrate-limit keyへ使わず、session UUIDだけをhashする', async () => {
@@ -357,10 +364,14 @@ test('接続IPをrate-limit keyへ使わず、session UUIDだけをhashする', 
   assert.doesNotMatch(firstKeys[0], /203\.0\.113\.9|198\.51\.100\.4/)
 })
 
-test('global拒否は429、D1障害はfail closedで503にする', async () => {
+test('global拒否後はcleanupもcaller別row作成もせず、D1障害はfail closedにする', async () => {
   const globalEntries = []
+  let cleanupCount = 0
   const globalEnv = createEnv({
     globalRateLimitSuccess: false,
+    onCleanup() {
+      cleanupCount += 1
+    },
     onRateLimit(entry) {
       globalEntries.push(entry)
     },
@@ -373,8 +384,8 @@ test('global拒否は429、D1障害はfail closedで503にする', async () => {
     429,
     'rate_limited',
   )
-  assert.equal(globalEntries[1].key, 'global')
-  assert.equal(globalEntries[1].limit, 300)
+  assert.deepEqual(globalEntries, [{ key: 'global', limit: 300 }])
+  assert.equal(cleanupCount, 0)
 
   const storageEnv = createEnv({ rateLimitError: new Error('D1 down') })
   await assertError(
@@ -385,6 +396,35 @@ test('global拒否は429、D1障害はfail closedで503にする', async () => {
     503,
     'unavailable',
   )
+})
+
+test('request中止をWorkers AIへ伝播し、Vectorize queryを実行しない', async () => {
+  const controller = new AbortController()
+  let aiSignal
+  let vectorCalls = 0
+  const env = createEnv({
+    onAiRun(_model, _input, options) {
+      aiSignal = options.signal
+      controller.abort()
+    },
+    onQuery() {
+      vectorCalls += 1
+    },
+  })
+  const request = searchRequest(
+    { query: '協力モデル', locale: 'ja' },
+    {},
+    controller.signal,
+  )
+
+  await assertError(
+    onRequestPost({ request, env }),
+    499,
+    'request_cancelled',
+  )
+  assert.equal(aiSignal, request.signal)
+  assert.equal(request.signal.aborted, true)
+  assert.equal(vectorCalls, 0)
 })
 
 test('embedding・Vectorizeの障害と不正responseを502にし、query本文をlogしない', async () => {
@@ -458,7 +498,7 @@ function searchMatch(id, score, url, locale) {
   }
 }
 
-function searchRequest(body, headers = {}) {
+function searchRequest(body, headers = {}, signal) {
   return new Request(`${SITE_ORIGIN}/api/search`, {
     method: 'POST',
     headers: {
@@ -468,6 +508,7 @@ function searchRequest(body, headers = {}) {
       ...headers,
     },
     body: JSON.stringify(body),
+    signal,
   })
 }
 
@@ -496,8 +537,8 @@ function createEnv({
       onRateLimit,
     }),
     AI: {
-      async run(model, input) {
-        onAiRun(model, input)
+      async run(model, input, options) {
+        onAiRun(model, input, options)
         assert.equal(model, '@cf/baai/bge-m3')
         return { data: [embedding] }
       },
@@ -525,11 +566,12 @@ function createRateLimitDatabase({
       if (rateLimitError) throw rateLimitError
 
       if (query.startsWith('DELETE')) {
+        assert.match(query, /LIMIT \?2/)
         return {
-          bind() {
+          bind(now, limit) {
             return {
               async run() {
-                onCleanup()
+                onCleanup({ now, limit })
                 return { success: true }
               },
             }

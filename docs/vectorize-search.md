@@ -12,11 +12,11 @@ Vectorize を AI 回答生成には使いません。公開済み設計資料の
 1. `scripts/sync-content.mjs` が原典を同期し、公開 route と原典 commit を `.vectorize/content-manifest.json` に記録する。
 2. Astro と Starlight が静的サイトと Pagefind index を `dist/` に生成する。
 3. `scripts/build-search-corpus.mjs` が公開 HTML から本文を抽出し、`.vectorize/corpus.json` を生成する。
-4. `scripts/sync-vectorize.mjs` が既存 ID と比較し、新規・変更 chunk だけを Workers AI で embedding して upsert する。
+4. `scripts/sync-vectorize.mjs` が全 chunk を Workers AI で再 embedding して upsert し、同じ ID の values / metadata 破損も修復する。
 5. corpus から消えた ID を削除し、最後の mutation が検索可能になるまで待つ。
 6. Pages Function `/api/search` が query を同じ model で embedding し、表示中の言語 namespace を検索する。
 
-公開書き込み API はありません。index 更新は protected `main` 上の GitHub Actions、または権限を持つ運用端末からのみ実行します。
+公開書き込み API はありません。index 更新は protected `preview` / `main` 上の GitHub Actions からのみ実行します。
 
 ## Cloudflare リソース
 
@@ -49,19 +49,24 @@ World Foundation は site repo と原典 repo が分かれています。公開 
 
 production 同期は、公開 marker が示す両 commit を checkout して corpus を再生成し、同期直前にも公開 marker と 3 値が一致する場合だけ実行します。site の push 後に Pages deployment が失敗した場合や、build 中に原典の公開状態が変わった場合は index を更新しません。
 
-原典だけが更新された場合は、既存の Pages Deploy Hook がサイトを再構築し、15 分ごとの reconciler が新しい公開 marker へ index を収束させます。
+原典だけが更新された場合は、既存の Pages Deploy Hook がサイトを再構築します。初期リリース中の Production index は自動更新せず、保護済み `preview` branchで評価した後、公開 marker を確認して手動 workflow で同期します。
 
 ## GitHub Actions と secret
 
 `.github/workflows/sync-vectorize.yml` は次を提供します。
 
 - Pull Request: secret なしで build、検索テスト、型検査、Pages Functions bundle、同期 dry-run を検証。
-- `main` push: 対応する production Pages deployment を待って production index を同期。
-- 15 分ごと: 現在公開中の site/content commit を再構築して production index を調整。
-- 手動 `preview`: 最新 `main` と原典 `main` を preview index へ同期。
+- `preview` push: review済み `preview` と原典 `main` を preview index へ同期。
+- 手動 `preview`: 最新 `preview` と原典 `main` を preview index へ再同期。
 - 手動 `production`: 現在公開中の組み合わせを production index へ再同期。
 
-実 corpus を作る job と token を使う同期 job は runner を分けます。同期 job は同じ protected `main` commit の依存なしスクリプトを再 checkout し、artifact の site/content/corpus 3 値を検証してから、最後の step だけへ token を渡します。
+通常の変更は feature branch から `preview` への Pull Request、Preview deploy / 検索評価、`preview` から `main` への Pull Request の順に進めます。`main` 向けPRは同じrepositoryの `preview` branchだけを許可します。
+
+原典 repository の `main` 更新だけでは site repository の required check は再実行されません。初期リリースでは Production 検索を無効のままにし、`preview` から `main` を merge する直前に検証 workflow を再実行して、artifact、Preview marker、原典 commit が一致することを確認します。将来この運用ゲートをなくす場合は、原典 commit を site commit に記録して Pull Request の入力へ固定します。
+
+初期リリースでは `main` push と定期 schedule から Production 同期を起動しません。Preview 評価、Production 事前同期、公開 canary を完了した後も、自動同期を有効化する場合は別 Pull Request で同期方式と原子的な corpus 切替をレビューします。
+
+実 corpus を作る job と token を使う同期 job は runner を分けます。同期 job は同じ protected `preview` / `main` commit の依存なしスクリプトを再 checkout し、artifact の site/content/corpus 3 値を検証してから、最後の step だけへ token を渡します。
 
 GitHub Environments と environment secret は次のように分離します。
 
@@ -70,13 +75,13 @@ GitHub Environments と environment secret は次のように分離します。
 | `cloudflare-world-foundation-search-preview` | `CLOUDFLARE_SEARCH_PREVIEW_API_TOKEN` | preview index |
 | `cloudflare-world-foundation-search-production` | `CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN` | production index |
 
-両 Environment の Deployment branches and tags は `main` だけに制限します。token は Acecore account だけを resource に指定し、同期に必要な `Vectorize Read`、`Vectorize Write`、`Workers AI Read` だけを付与します。token 値を repo、設定、ログ、PR 本文へ書きません。secret は build へ渡さず、fresh runner の最終同期 step だけに渡します。
+Preview Environment の Deployment branches and tags は `preview`、Production Environment は `main` だけに制限します。token は Acecore account だけを resource に指定し、同期に必要な `Vectorize Read`、`Vectorize Write`、`Workers AI Read` だけを付与します。token 値を repo、設定、ログ、PR 本文へ書きません。secret は build へ渡さず、fresh runner の最終同期 step だけに渡します。
 
 Cloudflare の Vectorize 権限は account scope で、個別 index には制限できません。GitHub Environment と同期 CLI の target 固定は誤操作を防ぎますが、Preview token 自体の権限範囲には同じ account の Production index も含まれます。完全な hard isolation が必要な場合は、別 account または狭い同期 gateway が必要です。
 
-専用 token を Environment secret へ保存する前に、`main` へ最低 1 件の承認、last-push approval、この workflow の PR 検証を required check として設定します。可能なら workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にもします。secret-bearing job は protected `main` のコードを実行するため、自己承認だけで `main` を変更できる状態では token を保存しません。
+専用 token を Environment secret へ保存する前に、`preview` と `main` へ最低 1 件の承認、last-push approval、この workflow の PR 検証を required check として設定します。可能なら workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にもします。secret-bearing job は protected branch のコードを実行するため、自己承認だけで `preview` / `main` を変更できる状態では token を保存しません。
 
-Pages Preview の binding は全 preview branch で共有されます。共有 Preview index は protected `main` の corpus だけを入れ、PR ごとの corpus で交互に上書きしません。
+Pages Preview の binding は全 preview branch で共有され、Vectorize / D1 binding は読み取り専用ではありません。Cloudflare Pages の Preview branch control は保護済み `preview` だけを許可し、任意の PR branch を Functions 付きで自動 deploy しません。共有 Preview index へは現在の protected `preview` の corpus だけを入れ、過去 workflow の再実行や PR ごとの corpus で上書きしません。
 
 ## 手元での検証
 
@@ -122,24 +127,26 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 ## 同期の安全策
 
 - 同期先 index 名は World Foundation の preview / production 2 件だけを許可する。
+- live sync CLI は `GITHUB_ACTIONS=true` を誤操作防止として要求し、通常のローカル worktree では dry-run のみにする。実際の権限境界は GitHub Environment secret、deployment branch policy、branch protection で構成する。
 - Cloudflare account ID を Acecore account に固定し、`--target` から index 名を決定する。
 - Production 同期は corpus version と一致する `--confirm-production` を必須にする。
 - index は同期処理で自動作成せず、事前作成済みの dimensions / metric を検証する。
 - corpus の source 数、vector 数、言語別 vector 数が安全下限を下回る場合は停止する。
 - 管理外形式の vector ID が 1 件でもあれば mutation 前に停止する。
 - 既存 vector の 20% を超える削除は、`--allow-large-delete` の明示なしでは停止する。
-- 内容ハッシュ付き ID により、同じ corpus の再同期では embedding を作り直さない。
+- 内容ハッシュ付き ID は差分と削除対象の識別に使う。同期時は既存 ID も含めて全件を再 embedding / upsert し、同じ ID の values / metadata 破損を修復する。
 - vector ID は embedding model、dimensions、metric、chunk contract を含む。契約変更時は全 ID が変わり、大量削除 guard が明示確認を要求する。
-- upsert 後に stale ID を削除し、最終 ID 集合が corpus と完全一致するまで検証する。Cloudflare の一時的な 429 / 5xx / network error は上限付き backoff で再試行する。
+- upsert mutation の処理完了を確認してから stale ID を削除し、最終 ID 集合が corpus と完全一致するまで検証する。Cloudflare の一時的な 429 / 5xx / network error は上限付き backoff で再試行する。
 - raw query、IP、embedding はログへ残さない。
 
 ## API の安全境界
 
 - 同一 Origin の `application/json` POST だけを受け付ける。
 - body は 2 KiB、query は 2〜160 文字、`topK` と model は server 側で固定する。
-- client 20 回/分、全体 300 回/分の固定窓を D1 で fail-closed に適用する。
+- 全体 300 回/分を先に、client 20 回/分を次に固定窓で D1 へ fail-closed に適用する。全体上限到達後は caller UUID ごとの row を作らない。
 - client key はブラウザの session UUID を SHA-256 化して使い、接続 IP は rate limit DBへ使わない。期限切れ row は各検索の前に削除する。
-- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。全体制限も必ず有効化し、公開後は Workers AI 利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
+- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は Workers AI 利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
+- browser が検索を中止した場合は `request.signal` を Workers AI へ伝播し、Vectorize query の前にも中止状態を確認する。
 - metadata の URL は同一 Origin の root-relative 公開 route だけを許可する。
 - response は `Cache-Control: no-store`。runtime log は request ID、stage、error class だけを記録する。
 - `SEARCH_ENABLED` を `"false"` にすると、UI と Pagefind を壊さず意味検索 API を停止できる。

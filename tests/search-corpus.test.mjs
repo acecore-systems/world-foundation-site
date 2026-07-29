@@ -41,6 +41,7 @@ test('公開HTMLとmanifestから決定的な日英corpusを作り、除外要�
 					<p>すべての人が好きなことに集中できる世界を目指します。</p>
 					<h2>自由参加</h2>
 					<p>参加も離脱も自由で、地域ごとの違いを残したままつながります。</p>
+					<p>公開検索は <code>SEARCH_ENABLED</code> で切り替えます。</p>
 					<blockquote>この引用は公開本文なので検索対象に残します。</blockquote>
 					<pre><code>const secret = "検索に含めないコード";</code></pre>
 					<svg><text>検索に含めない図</text></svg>
@@ -102,6 +103,7 @@ test('公開HTMLとmanifestから決定的な日英corpusを作り、除外要�
 	assert.equal(japanese.metadata.locale, 'ja');
 	assert.match(japanese.text, /地域ごとの違い/);
 	assert.match(japanese.text, /この引用は公開本文/);
+	assert.match(japanese.text, /SEARCH_ENABLED/);
 	assert.doesNotMatch(
 		japanese.text,
 		/原文|編集を提案|ナビゲーション|コード|検索に含めない図|スクリプト|CSS/,
