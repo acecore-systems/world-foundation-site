@@ -30,6 +30,9 @@ export default defineConfig({
 					href: 'https://github.com/acecore-systems/world-foundation',
 				},
 			],
+			components: {
+				Search: './src/components/Search.astro',
+			},
 			sidebar: [
 				{
 					label: '基本設計',

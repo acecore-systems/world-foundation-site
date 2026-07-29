@@ -1,4 +1,5 @@
 import { access, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 const siteRoot = process.cwd();
@@ -6,8 +7,11 @@ const defaultSourceRoot = await findDefaultSourceRoot();
 const sourceRoot = path.resolve(
 	process.env.WORLD_FOUNDATION_SOURCE || defaultSourceRoot,
 );
+const contentCommit = await resolveContentCommit(sourceRoot);
 const outputRoot = path.join(siteRoot, 'src', 'content', 'docs');
 const publicAssetRoot = path.join(siteRoot, 'public', 'source-assets');
+const searchManifestRoot = path.join(siteRoot, '.vectorize');
+const searchManifestPath = path.join(searchManifestRoot, 'content-manifest.json');
 const sourceRepoUrl = 'https://github.com/acecore-systems/world-foundation';
 const siteBasePath = normalizeBasePath(process.env.SITE_BASE_PATH || '');
 const staticAssetSources = new Set();
@@ -374,6 +378,25 @@ for (const assetSource of staticAssetSources) {
 	}
 }
 
+await mkdir(searchManifestRoot, { recursive: true });
+await writeFile(
+	searchManifestPath,
+	`${JSON.stringify(
+		{
+			schemaVersion: 1,
+			contentCommit,
+			routes: pages.map((page, index) => ({
+				url: toSiteLink(page.dest, ''),
+				locale: page.lang,
+				searchable: isSearchablePage(page, index),
+			})),
+		},
+		null,
+		2,
+	)}\n`,
+	'utf8',
+);
+
 console.log(`Synced ${pages.length} pages from ${sourceRoot}`);
 if (staticAssetSources.size > 0) {
 	console.log(`Copied ${staticAssetSources.size} static asset(s)`);
@@ -537,6 +560,68 @@ function normalize(filePath) {
 function normalizeBasePath(basePath) {
 	if (!basePath || basePath === '/') return '';
 	return `/${basePath.replace(/^\/|\/$/g, '')}`;
+}
+
+function isSearchablePage(page, pageIndex) {
+	const source = normalize(page.src);
+	if (page.lang === 'en' && !source.includes('/en/')) return false;
+
+	return (
+		pages.findIndex(
+			(candidate) =>
+				candidate.lang === page.lang && normalize(candidate.src) === source,
+		) === pageIndex
+	);
+}
+
+async function resolveContentCommit(repositoryRoot) {
+	const configuredCommit = process.env.WORLD_FOUNDATION_CONTENT_COMMIT;
+	if (configuredCommit) return normalizeCommit(configuredCommit);
+
+	const commit = await runGit(repositoryRoot, ['rev-parse', 'HEAD']);
+	return normalizeCommit(commit);
+}
+
+function normalizeCommit(value) {
+	const commit = String(value || '').trim().toLowerCase();
+	if (!/^[0-9a-f]{40}$/.test(commit)) {
+		throw new Error(
+			'World Foundation content source must resolve to a full 40-character Git commit.',
+		);
+	}
+	return commit;
+}
+
+function runGit(repositoryRoot, args) {
+	return new Promise((resolve, reject) => {
+		const child = spawn('git', ['-C', repositoryRoot, ...args], {
+			stdio: ['ignore', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		let stdout = '';
+		let stderr = '';
+
+		child.stdout.setEncoding('utf8');
+		child.stderr.setEncoding('utf8');
+		child.stdout.on('data', (chunk) => {
+			stdout += chunk;
+		});
+		child.stderr.on('data', (chunk) => {
+			stderr += chunk;
+		});
+		child.on('error', reject);
+		child.on('exit', (code) => {
+			if (code === 0) {
+				resolve(stdout.trim());
+				return;
+			}
+			reject(
+				new Error(
+					`git ${args.join(' ')} exited with code ${code}: ${stderr.trim()}`,
+				),
+			);
+		});
+	});
 }
 
 async function findDefaultSourceRoot() {

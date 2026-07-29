@@ -7,9 +7,13 @@ dist/
 src/content/docs/
 content-source/
 public/source-assets/
+.vectorize/
 
 # dependencies
 node_modules/
+
+# Cloudflare local state and generated Pages Functions bundle
+.wrangler/
 
 # logs
 npm-debug.log*
@@ -21,6 +25,7 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.dev.vars
 
 # macOS-specific files
 .DS_Store
