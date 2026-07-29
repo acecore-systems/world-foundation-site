@@ -20,6 +20,10 @@ test('初期リリースはpreview pushだけを自動同期し、Productionはm
 
 	assert.doesNotMatch(triggers, /^\s{2}schedule:/mu);
 	assert.match(triggers, /^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- preview$/mu);
+	assert.match(
+		triggers,
+		/^\s{2}pull_request:\s*\n\s{4}types:\s*\n(?:\s{6}- .+\n)*\s{6}- edited$/mu,
+	);
 	assert.match(productionJob, /github\.event_name == 'workflow_dispatch'/u);
 	assert.match(productionJob, /github\.ref == 'refs\/heads\/main'/u);
 	assert.match(productionJob, /inputs\.target == 'production'/u);
