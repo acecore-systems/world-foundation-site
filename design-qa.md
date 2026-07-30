@@ -2,71 +2,63 @@
 
 ## Comparison target
 
-- Source visual truth: `C:\Users\gnish\.codex\generated_images\019fa0f9-045d-7ea2-b9a9-36014ddbad57\call_z5GE7SkUHWk6KCoBT91QUAij.png`
+- Source visual truth: `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\fidelity-audit-2026-07-27\01-reference.png`
 - Rendered implementation: `http://127.0.0.1:4173/`
-- Full-view implementation evidence: `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\lp-overview-final.jpg`
-- Side-by-side comparison: `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\reference-vs-prototype.jpg`
-- Focused evidence:
-  - `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\focus-hero-1440.jpg`
-  - `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\focus-principles-861.jpg`
-  - `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\focus-mobile-390.jpg`
-- State: Japanese landing page, dark cinematic theme, default motion; English route checked separately.
+- Final implementation capture: `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\fidelity-audit-2026-07-27\02-current-final.png`
+- Final side-by-side comparison: `C:\Users\gnish\.codex\visualizations\2026\07\27\019fa0f9-045d-7ea2-b9a9-36014ddbad57\fidelity-audit-2026-07-27\03-reference-vs-current-final.jpg`
+- Responsive evidence:
+  - `04-mobile-390.png`
+  - `05-english-821.png`
+  - `06-desktop-1440.png`
 
-## Viewport and normalization
+## Viewport and geometry
 
-- Source: 861 × 1827 px, treated as 1× design overview.
-- Browser checks: 1440 × 900, 861 × 900, and 390 × 844 CSS px.
-- The in-app browser reserved 15 px for its scrollbar, producing 1425 px, 846 px, and 375 px content widths.
-- The implementation overview combines eight 846 × 900 viewport captures into an 846 × 1800 contact view. It was normalized to 861 × 1827 only for the combined comparison image. Focused screenshots retain their browser-rendered density and were used for readable typography and crop checks.
+- Reference and implementation were compared at exactly `861 × 1827` CSS pixels with device scale factor 1.
+- Final page geometry is `861 × 1827`; horizontal scroll width is `861`.
+- Section boundaries match the reference at `0, 310, 500, 693, 782, 977, 1170, 1357, 1495, 1644, 1827`.
+- The left timeline boundary, marker track, chapter positions, scene cuts, evidence band, and epilogue height were measured rather than visually approximated.
 
-## Findings
+## Final findings
 
-- No actionable P0, P1, or P2 differences remain.
-- Typography: Noto Serif JP carries the cinematic display hierarchy while Noto Sans JP is limited to utility labels. Weight, tracking, wrapping, and line height remain readable at all checked widths.
-- Spacing and layout rhythm: the left act rail, alternating image/copy fields, evidence band, and epilogue preserve the selected composition. Desktop and mobile checks showed no horizontal overflow, overlap, or clipped controls.
-- Colors and tokens: charcoal, midnight blue, ivory, brass, and restrained rust match the selected visual direction. Brighter cellular, rainy-day, archipelago, and single-sunrise scenes prevent the page from becoming uniformly dark.
-- Image quality: nine 2048 × 1152 production assets are present and loaded. The selected membrane/intercellular-fluid abstraction is used for “ひとつの世界。無数の自由。” No visible asset is replaced with placeholder, CSS art, inline SVG art, emoji, or a text glyph.
-- Copy and content: the page retains 10 principles, 11 modules, 26 threat categories, and 6 roadmap phases. It states one shared world with autonomous communities, omits founder/Acecore promotion, and keeps the detailed public-design content.
-- Interaction and accessibility: JP/EN switching works; primary documentation routes return HTTP 200; the page includes a skip link, semantic headings/regions, visible focus treatment, decorative-image alt handling, and reduced-motion behavior.
-- Browser evidence: all scene images reported natural size 2048 × 1152, no broken images were found, and the browser console contained no warnings or errors.
+- No actionable P0, P1, or P2 fidelity issue remains.
+- Hero, ACT I, and epilogue use slot-specific cinematic assets with copy-safe shadow fields and reference-matched focal placement.
+- ACT II uses the approved membrane/intercellular-fluid abstraction for “ひとつの世界。無数の自由。” rather than a literal map or sunrise.
+- ACT IV now includes the reference’s public-design worktable density: paper, window light, glass, and a visible vintage camera.
+- ACT V uses multiple small silver-black liquid pools instead of one dominant blob; the quote and `— Accepted` remain fully inside the section.
+- Evidence values, 10 principles, 11 modules, six roadmap phases, and the Issue → Proposal → Review → Decision → Fork process retain their information density.
+- Japanese timeline copy matches the selected reference: `世界をひとつにしない`, `安全設計`, `愛される`, and `育てる つながる`.
+- Section-average luminance is within a small visual tolerance of the reference; the largest remaining difference is local image texture, not layout or readability.
+
+## Responsive and locale QA
+
+- Checked widths: `390`, `820`, `821`, `861`, and `1440` CSS pixels.
+- No horizontal overflow was found at any checked width.
+- Mobile uses the intended single-column cinematic sequence with full-width controls and readable information blocks.
+- English was checked at `390` and the narrowest desktop layout (`821`). Principle and module labels no longer wrap into neighboring rows or clip.
+- JP/EN language switching returns the correct route, `lang`, and document title.
+
+## Interaction and browser QA
+
+- The hero CTA was located as one unique accessible link, clicked, and verified to land at `#act1` with the section at viewport top.
+- The external participation CTA opens the repository issues page in a new tab with `rel="noreferrer"`.
+- The final browser pass found zero broken scene images and no console warnings or errors.
+- Semantic regions, heading order, skip link, visible links, reduced-motion behavior, and decorative-image handling remain intact.
+
+## Production verification
+
+- Command: Node `24.18.0`, `WORLD_FOUNDATION_SOURCE=C:\Users\gnish\repos\world-foundation`, `npm run build`.
+- Result: passed.
+- Content sync: 94 pages.
+- Static build: 97 pages.
+- Pagefind index and sitemap completed.
+- One non-blocking existing Vite warning remains for a chunk larger than 500 kB; it is unrelated to the landing-page fidelity work.
 
 ## Comparison history
 
-### Pass 1 — blocked
-
-- [P1] ACT III, ACT IV, and ACT VI scene images were hidden behind the panel background.
-  - Evidence: the first 861 px overview showed uninterrupted black fields where the selected visual had image/copy splits.
-  - Cause: negative `z-index` from `.scene-media` escaped the editorial media container.
-  - Fix: isolated `.editorial-split__media`, clipped it, promoted its image to `z-index: 0`, and placed the gradient overlay at `z-index: 1`.
-
-### Pass 2 — passed
-
-- Post-fix evidence: `focus-principles-861.jpg` shows the pen-and-membrane scene beside the 10 principles, followed by the collaborative worktable beside the 11 modules.
-- The refreshed full-view comparison shows the intended image rhythm through ACT VI with no remaining P0/P1/P2 visual difference.
-
-### Pass 3 — passed
-
-- Independent review found that locale fallback exposed the Japanese overview at `/en/docs/overview/`; the sync map now generates an English overview from `docs/en/README.md`.
-- Independent review found that ACT V skipped from its section label directly to `h3`; the ACT V label is now its semantic `h2` without changing the visual treatment.
-- The English overview and ACT V heading level were rechecked in the in-app browser. The final 97-page production build completed successfully.
-
-## Open Questions
-
-- None blocking. The source is a condensed visual overview while the implementation is a usable scrolling site, so exact section height equality is intentionally not treated as a fidelity requirement.
-
-## Implementation Checklist
-
-- [x] Match the approved cinematic direction.
-- [x] Use the selected abstract cellular background.
-- [x] Preserve the full information architecture and source-backed figures.
-- [x] Provide Japanese and English landing pages.
-- [x] Keep documentation routes available after replacing the generated home routes.
-- [x] Verify desktop, tablet-width, and mobile layouts.
-- [x] Verify language switching, core links, image loading, and browser console.
-- [x] Complete a 97-page production build.
-
-## Follow-up Polish
-
-- [P3] A future performance pass could split the existing Mermaid documentation bundle. It does not affect the LP’s visual fidelity or core interaction.
+1. Initial comparison exposed incorrect full-page height, repeated timeline markers, missing media, and oversized dark sections.
+2. Geometry was rebuilt around one measured timeline and the exact reference section boundaries.
+3. Evidence, principles, modules, safety, life, roadmap, and epilogue typography were resized against same-viewport captures.
+4. Hero, ACT I, ACT IV, ACT V, and epilogue received slot-specific generated backgrounds.
+5. Final same-size comparison, responsive QA, locale QA, interaction checks, console inspection, and the 97-page production build passed.
 
 final result: passed

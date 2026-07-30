@@ -75,16 +75,16 @@ export const landingCopy = {
 			marker: ['ACT I', '見えない重力'],
 			label: 'ACT I / 見えない重力',
 			items: ['生存不安', '望まない働き方', '国境・制度による分断', '不透明な権力'],
-			note: '既存制度を否定するのではなく、それだけに依存しなくても生きられる選択肢を増やす。',
+			note: '既存制度を否定するのではなく、それだけに依存しない選択肢を増やす。',
 		},
 		world: {
-			marker: ['ACT II', 'ひとつの世界'],
+			marker: ['ACT II', '世界をひとつにしない'],
 			label: 'ACT II / 世界をつくる設計',
 			title: ['ひとつの世界。', '無数の自由。'],
 			lines: ['自律組織 × 共通プロトコル', '参加 / 離脱 / フォーク'],
 		},
 		evidence: {
-			marker: ['EVIDENCE', '公開設計'],
+			marker: ['EVIDENCE', ''],
 			label: 'EVIDENCE / 公開設計のアセット',
 			stats: [
 				['10', '設計原則', '/docs/01-principles/'],
@@ -93,7 +93,7 @@ export const landingCopy = {
 				['6', 'ロードマップフェーズ', '/docs/03-roadmap/'],
 			],
 			language: 'JP / EN',
-			status: ['公開設計 / Phase 0', '設計基盤'],
+			status: ['公開設計 / Phase 0', '文書全体'],
 		},
 		principles: {
 			marker: ['ACT III', '10原則'],
@@ -101,32 +101,33 @@ export const landingCopy = {
 			note: '平和は強制的な統一ではなく、協力インセンティブの設計によって実現する。',
 		},
 		modules: {
-			marker: ['ACT IV', '11の責任'],
+			marker: ['ACT IV', '安全設計'],
 			label: 'ACT IV / 社会を11の責任へ分ける',
 			note: 'モジュールは支配単位ではなく、責任範囲を分けるための単位。',
 		},
 		safety: {
-			marker: ['ACT V', '疑い続ける'],
+			marker: ['ACT V', '愛される'],
 			label: 'ACT V / 理想ほど、疑われなければならない',
 			risksLabel: '脅威（私たちが警戒するもの）',
 			risks: [
 				'権力集中',
-				'離脱不能性',
-				'透明性を口実にした監視',
-				'信用スコアによる差別',
-				'福祉の支配化',
-				'連合の中央支配化',
+				'監視化',
+				'離脱可能性の喪失',
+				'操作の永続化',
+				'信用スコア独裁',
+				'連合の中央支配',
 			],
 			guardsLabel: '対策（私たちが設計する保護）',
 			guards: [
-				'離脱可能性',
-				'フォーク可能性',
+				'離脱',
+				'フォーク',
 				'異議申し立て',
 				'意思決定ログ',
-				'利益相反の開示',
+				'利益相反開示',
 				'専門家レビュー',
 			],
 			quote: ['コミュニティのあいだに、', '協力が流れる。', '誰にも、', '永久権限を与えない。'],
+			accepted: '— Accepted',
 		},
 		life: {
 			marker: ['ACT VI', '暮らしまで'],
@@ -134,14 +135,14 @@ export const landingCopy = {
 			title: ['生活支援は依存を作るためではなく、', '選択肢を増やすためのもの。'],
 			access: '食 / 住 / 通信 / 教育 / 健康支援',
 			experiments: [
-				'生活ニーズの匿名集計',
-				'共同購入の透明な会計記録',
-				'学習支援や通信支援の小規模実験',
-				'内部ポイントを使わない相互扶助の検証',
+				'匿名ニーズ集計',
+				'透明な共同購入',
+				'学習・通信支援',
+				'相互扶助',
 			],
 		},
 		roadmap: {
-			marker: ['ACT VII', '動き続ける'],
+			marker: ['ACT VII', '育てる つながる'],
 			label: 'ACT VII / 未来まで動き続ける',
 			title: '設計は固定された完成物ではなく、歩きながら書き換えるもの。',
 			phases: [
@@ -153,8 +154,8 @@ export const landingCopy = {
 				['5', '国家機能の縮小'],
 			],
 			processLabel: '公開プロセス',
-			process: ['Issue', 'Proposal', 'Review', 'Pull Request', 'Decision'],
-			forkNote: '必要なら Fork',
+			process: ['Issue', 'Proposal', 'Review', 'Decision', 'Fork'],
+			forkNote: '',
 		},
 		epilogue: {
 			marker: ['朝', 'EPILOGUE'],
@@ -187,13 +188,13 @@ export const landingCopy = {
 			note: 'Not to erase existing institutions, but to create choices beyond dependence on them.',
 		},
 		world: {
-			marker: ['ACT II', 'One world'],
+			marker: ['ACT II', 'Not one uniform world'],
 			label: 'ACT II / DESIGNING THE WORLD',
 			title: ['One world.', 'Countless freedoms.'],
 			lines: ['Autonomous communities × shared protocols', 'Join / Leave / Fork'],
 		},
 		evidence: {
-			marker: ['EVIDENCE', 'Open design'],
+			marker: ['EVIDENCE', ''],
 			label: 'EVIDENCE / OPEN DESIGN ASSETS',
 			stats: [
 				['10', 'Design principles', '/en/docs/01-principles/'],
@@ -210,12 +211,12 @@ export const landingCopy = {
 			note: 'Peace should come from incentives to cooperate, not enforced uniformity.',
 		},
 		modules: {
-			marker: ['ACT IV', '11 responsibilities'],
+			marker: ['ACT IV', 'Safety by design'],
 			label: 'ACT IV / DIVIDING SOCIETY INTO ELEVEN RESPONSIBILITIES',
 			note: 'Modules are not units of control. They separate responsibility and remain replaceable.',
 		},
 		safety: {
-			marker: ['ACT V', 'Keep questioning'],
+			marker: ['ACT V', 'Made to be loved'],
 			label: 'ACT V / IDEALS MUST REMAIN OPEN TO DOUBT',
 			risksLabel: 'Threats we watch for',
 			risks: [
@@ -238,6 +239,7 @@ export const landingCopy = {
 				'Periodic review',
 			],
 			quote: ['Between communities,', 'cooperation can flow.', 'No one receives', 'permanent authority.'],
+			accepted: '— Accepted',
 		},
 		life: {
 			marker: ['ACT VI', 'Life choices'],
@@ -247,7 +249,7 @@ export const landingCopy = {
 			experiments: ['Anonymous needs', 'Transparent group buying', 'Learning and connectivity', 'Mutual aid'],
 		},
 		roadmap: {
-			marker: ['ACT VII', 'Begin moving'],
+			marker: ['ACT VII', 'Grow and connect'],
 			label: 'ACT VII / MOVING IN THE FUTURE TENSE',
 			title: 'The design is not a fixed conclusion. Participants can keep rewriting it.',
 			phases: [
@@ -259,8 +261,8 @@ export const landingCopy = {
 				['5', 'Less state dependency'],
 			],
 			processLabel: 'Open process',
-			process: ['Issue', 'Proposal', 'Review', 'Pull Request', 'Decision'],
-			forkNote: 'Fork when needed',
+			process: ['Issue', 'Proposal', 'Review', 'Decision', 'Fork'],
+			forkNote: '',
 		},
 		epilogue: {
 			marker: ['MORNING', 'EPILOGUE'],

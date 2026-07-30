@@ -12,14 +12,34 @@ const copy = landingCopy[locale];
 const localeModules = modules[locale];
 const localePrinciples = principles[locale];
 const isJa = locale === 'ja';
+const timelineMarkers = [
+	{ lines: copy.prologue, at: '6.4%' },
+	{ lines: copy.problem.marker, at: '12.4%' },
+	{ lines: copy.world.marker, at: '22.8%' },
+	{ lines: copy.evidence.marker, at: '31.5%' },
+	{ lines: copy.principles.marker, at: '40.3%' },
+	{ lines: copy.modules.marker, at: '57.6%' },
+	{ lines: copy.safety.marker, at: '68.3%' },
+	{ lines: copy.roadmap.marker, at: '77.6%' },
+	{ lines: copy.epilogue.marker, at: '92.1%' },
+] as const;
 ---
 
 <div class="story" data-story>
+	<div class="story-timeline" aria-hidden="true">
+		{
+			timelineMarkers.map(({ lines, at }) => (
+				<div class="story-timeline__marker" style={`--marker-at: ${at}`}>
+					<ActMarker lines={lines} />
+				</div>
+			))
+		}
+	</div>
 	<main id="main-content">
 		<section class="story-row story-row--hero" id="top" aria-labelledby="hero-title">
-			<aside class="story-rail"><ActMarker lines={copy.prologue} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel scene scene--hero">
-				<SceneMedia src="/lp-cinematic/hero-piano.webp" position="62% 45%" eager />
+				<SceneMedia src="/lp-cinematic/hero-piano-v2.webp" position="50% 50%" eager />
 				<div class="scene-shade scene-shade--hero"></div>
 
 				<header class="site-header">
@@ -48,9 +68,9 @@ const isJa = locale === 'ja';
 		</section>
 
 		<section class="story-row" id="act1" aria-labelledby="act1-title">
-			<aside class="story-rail"><ActMarker lines={copy.problem.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel scene scene--problem">
-				<SceneMedia src="/lp-cinematic/act1-notebook.webp" position="64% 52%" />
+				<SceneMedia src="/lp-cinematic/act1-problem-v2.webp" position="50% 50%" />
 				<div class="scene-shade scene-shade--left"></div>
 				<div class="section-copy section-copy--compact" data-reveal>
 					<p class="section-label">{copy.problem.label}</p>
@@ -63,9 +83,9 @@ const isJa = locale === 'ja';
 		</section>
 
 		<section class="story-row" id="world" aria-labelledby="world-title">
-			<aside class="story-rail"><ActMarker lines={copy.world.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel scene scene--world">
-				<SceneMedia src="/lp-cinematic/cellular-world.webp" position="64% 50%" />
+				<SceneMedia src="/lp-cinematic/cellular-world-v3.webp" position="60% 50%" />
 				<div class="scene-shade scene-shade--cellular"></div>
 				<div class="section-copy section-copy--world" data-reveal>
 					<p class="section-label">{copy.world.label}</p>
@@ -80,10 +100,10 @@ const isJa = locale === 'ja';
 		</section>
 
 		<section class="story-row" id="evidence" aria-labelledby="evidence-title">
-			<aside class="story-rail"><ActMarker lines={copy.evidence.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel evidence">
 				<div class="evidence__intro">
-					<p class="section-label" id="evidence-title">{copy.evidence.label}</p>
+					<h2 class="section-label" id="evidence-title">{copy.evidence.label}</h2>
 				</div>
 				<div class="evidence__stats">
 					{
@@ -103,11 +123,10 @@ const isJa = locale === 'ja';
 		</section>
 
 		<section class="story-row" id="principles" aria-labelledby="principles-title">
-			<aside class="story-rail"><ActMarker lines={copy.principles.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel editorial-split">
 				<div class="editorial-split__copy" data-reveal>
-					<p class="section-label">{copy.principles.label}</p>
-					<h2 id="principles-title" class="visually-hidden">{copy.principles.label}</h2>
+					<h2 id="principles-title" class="section-label">{copy.principles.label}</h2>
 					<ol class="principle-list">
 						{
 							localePrinciples.map((principle, index) => (
@@ -121,17 +140,16 @@ const isJa = locale === 'ja';
 					<p class="section-note">{copy.principles.note}</p>
 				</div>
 				<div class="editorial-split__media">
-					<SceneMedia src="/lp-cinematic/act3-principles.webp" position="74% 50%" />
+					<SceneMedia src="/lp-cinematic/act3-principles-v2.webp" position="58% 50%" />
 				</div>
 			</div>
 		</section>
 
 		<section class="story-row" id="modules" aria-labelledby="modules-title">
-			<aside class="story-rail"><ActMarker lines={copy.modules.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel editorial-split editorial-split--modules">
 				<div class="editorial-split__copy editorial-split__copy--wide" data-reveal>
-					<p class="section-label">{copy.modules.label}</p>
-					<h2 id="modules-title" class="visually-hidden">{copy.modules.label}</h2>
+					<h2 id="modules-title" class="section-label">{copy.modules.label}</h2>
 					<ul class="module-list">
 						{
 							localeModules.map(([name, description, href]) => (
@@ -147,15 +165,15 @@ const isJa = locale === 'ja';
 					<p class="section-note">{copy.modules.note}</p>
 				</div>
 				<div class="editorial-split__media">
-					<SceneMedia src="/lp-cinematic/act4-worktable.webp" position="70% 52%" />
+					<SceneMedia src="/lp-cinematic/act4-worktable-v3.webp" position="78% 50%" />
 				</div>
 			</div>
 		</section>
 
 		<section class="story-row" id="safety" aria-labelledby="safety-title">
-			<aside class="story-rail"><ActMarker lines={copy.safety.marker} /></aside>
-			<div class="story-panel safety">
-				<SceneMedia src="/lp-cinematic/act5-interstitial.webp" position="78% 50%" />
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel safety scene">
+				<SceneMedia src="/lp-cinematic/act5-interstitial-v3.webp" position="78% 50%" />
 				<div class="scene-shade scene-shade--safety"></div>
 				<div class="safety__content" data-reveal>
 					<h2 class="section-label" id="safety-title">{copy.safety.label}</h2>
@@ -174,6 +192,7 @@ const isJa = locale === 'ja';
 						</div>
 						<blockquote>
 							{copy.safety.quote.map((line) => <span>{line}</span>)}
+							<cite>{copy.safety.accepted}</cite>
 						</blockquote>
 					</div>
 				</div>
@@ -181,7 +200,7 @@ const isJa = locale === 'ja';
 		</section>
 
 		<section class="story-row" id="life" aria-labelledby="life-title">
-			<aside class="story-rail"><ActMarker lines={copy.life.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel editorial-split editorial-split--life">
 				<div class="editorial-split__copy" data-reveal>
 					<p class="section-label">{copy.life.label}</p>
@@ -194,15 +213,15 @@ const isJa = locale === 'ja';
 					</ul>
 				</div>
 				<div class="editorial-split__media">
-					<SceneMedia src="/lp-cinematic/act6-window.webp" position="67% 50%" />
+					<SceneMedia src="/lp-cinematic/act6-window-v2.webp" position="58% 50%" />
 				</div>
 			</div>
 		</section>
 
 		<section class="story-row" id="roadmap" aria-labelledby="roadmap-title">
-			<aside class="story-rail"><ActMarker lines={copy.roadmap.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel roadmap scene">
-				<SceneMedia src="/lp-cinematic/act7-archipelago.webp" position="68% 50%" />
+				<SceneMedia src="/lp-cinematic/act7-archipelago-v2.webp" position="58% 50%" />
 				<div class="scene-shade scene-shade--roadmap"></div>
 				<div class="roadmap__content" data-reveal>
 					<p class="section-label">{copy.roadmap.label}</p>
@@ -230,16 +249,16 @@ const isJa = locale === 'ja';
 								))
 							}
 						</ol>
-						<small>{copy.roadmap.forkNote}</small>
+						{copy.roadmap.forkNote && <small>{copy.roadmap.forkNote}</small>}
 					</div>
 				</div>
 			</div>
 		</section>
 
 		<section class="story-row story-row--epilogue" id="epilogue" aria-labelledby="epilogue-title">
-			<aside class="story-rail"><ActMarker lines={copy.epilogue.marker} /></aside>
+			<div class="story-rail" aria-hidden="true"></div>
 			<div class="story-panel scene scene--epilogue">
-				<SceneMedia src="/lp-cinematic/epilogue-writing.webp" position="66% 52%" />
+				<SceneMedia src="/lp-cinematic/epilogue-work-v2.webp" position="50% 50%" />
 				<div class="scene-shade scene-shade--epilogue"></div>
 				<div class="epilogue__content" data-reveal>
 					<h2 id="epilogue-title">
@@ -257,6 +276,7 @@ const isJa = locale === 'ja';
 							rel="noreferrer"
 						>
 							{copy.epilogue.secondary}<span aria-hidden="true">→</span>
+							<span class="visually-hidden">{isJa ? '（新しいタブで開きます）' : ' (opens in a new tab)'}</span>
 						</a>
 					</div>
 				</div>
