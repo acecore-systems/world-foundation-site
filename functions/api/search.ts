@@ -346,8 +346,8 @@ async function deleteExpiredRateLimits(database: D1Database): Promise<void> {
   await database
     .prepare(
       `DELETE FROM semantic_search_rate_limits
-       WHERE rowid IN (
-         SELECT rowid
+       WHERE (limiter_key, window_start) IN (
+         SELECT limiter_key, window_start
          FROM semantic_search_rate_limits
          WHERE expires_at < ?1
          ORDER BY expires_at

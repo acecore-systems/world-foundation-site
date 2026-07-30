@@ -567,6 +567,8 @@ function createRateLimitDatabase({
 
       if (query.startsWith('DELETE')) {
         assert.match(query, /LIMIT \?2/)
+        assert.match(query, /SELECT limiter_key, window_start/)
+        assert.doesNotMatch(query, /\browid\b/)
         return {
           bind(now, limit) {
             return {
