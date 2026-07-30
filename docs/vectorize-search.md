@@ -3,7 +3,7 @@
 World Foundation Site の検索は、次の 2 系統を同じ検索モーダルで提供します。
 
 - Pagefind: ブラウザ内で動くキーワード検索。常に主検索として残す。
-- Cloudflare Vectorize: Workers AI の多言語 embedding を使う「関連する内容」。失敗時はこの欄だけを隠し、Pagefind を継続する。
+- Cloudflare Vectorize: OpenAI Embeddings API の多言語 embedding を使う「関連する内容」。失敗時はこの欄だけを隠し、Pagefind を継続する。
 
 Vectorize を AI 回答生成には使いません。公開済み設計資料の候補を返す検索補助として扱います。
 
@@ -12,31 +12,34 @@ Vectorize を AI 回答生成には使いません。公開済み設計資料の
 1. `scripts/sync-content.mjs` が原典を同期し、公開 route と原典 commit を `.vectorize/content-manifest.json` に記録する。
 2. Astro と Starlight が静的サイトと Pagefind index を `dist/` に生成する。
 3. `scripts/build-search-corpus.mjs` が公開 HTML から本文を抽出し、`.vectorize/corpus.json` を生成する。
-4. `scripts/sync-vectorize.mjs` が全 chunk を Workers AI で再 embedding して upsert し、同じ ID の values / metadata 破損も修復する。
+4. `scripts/sync-vectorize.mjs` が全 chunk を OpenAI へ直接送って再 embedding し、Vectorize へ upsert して同じ ID の values / metadata 破損も修復する。
 5. corpus から消えた ID を削除し、最後の mutation が検索可能になるまで待つ。
-6. Pages Function `/api/search` が query を同じ model で embedding し、表示中の言語 namespace を検索する。
+6. Pages Function `/api/search` が query を OpenAI の同じ model で embedding し、binding 経由で表示中の言語 namespace を検索する。
 
 公開書き込み API はありません。index 更新は protected `preview` / `main` 上の GitHub Actions からのみ実行します。
 
 ## Cloudflare リソース
 
-| 環境 | Vectorize index | D1 rate-limit database | namespace |
-| --- | --- | --- | --- |
-| Preview | `world-foundation-search-preview` | `world-foundation-search-preview` | `ja`, `en` |
-| Production | `world-foundation-search-production` | `world-foundation-search-production` | `ja`, `en` |
+| 環境       | Vectorize index                                  | D1 rate-limit database               | namespace  |
+| ---------- | ------------------------------------------------ | ------------------------------------ | ---------- |
+| Preview    | `world-foundation-search-openai-1536-preview`    | `world-foundation-search-preview`    | `ja`, `en` |
+| Production | `world-foundation-search-openai-1536-production` | `world-foundation-search-production` | `ja`, `en` |
 
 embedding contract は次のとおりです。
 
-- model: `@cf/baai/bge-m3`
-- dimensions: `1024`
+- model: `text-embedding-3-large`
+- dimensions: `1536`（OpenAI の `dimensions` parameter で短縮）
+- encoding: `float`
 - metric: `cosine`
 - chunk: 850 文字目標 / 1200 文字上限 / 120 文字 overlap
 
-model、dimensions、metric は既存 index 内で混在させません。変更時は新しい index を作成し、全件同期と検索評価を終えてから binding を切り替えます。
+Vectorize の上限が 1536 次元のため、`text-embedding-3-large` の既定 3072 次元は保存せず、query と corpus の両方を同じ 1536 次元で生成します。model、dimensions、metric は既存 index 内で混在させません。旧 1024 次元 index は削除せず、新しい index の全件同期と検索評価を終えてから binding を切り替えます。
 
 Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の Dashboard 設定は `wrangler pages download config world-foundation-site` で取得し、project 名、output directory、compatibility date、空の production environment だけであることを確認済みです。
 
-Production の初回 gate は完了しており、現在の `SEARCH_ENABLED` は `"true"` です。障害時に意味検索だけを止められるよう、`"false"` へ戻す fail-safe は維持します。
+Pages Function 用の `OPENAI_API_KEY` は Preview / Production の secret として Cloudflare Pages に設定します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` は Preview / Production の各 GitHub Environment secret へ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。
+
+旧 1024 次元構成での Production 初回 gate は完了しており、現在の `SEARCH_ENABLED` は `"true"` です。新 1536 次元構成は後述の移行 gate を再実施します。障害時に意味検索だけを止められるよう、`"false"` へ戻す fail-safe は維持します。
 
 ## 原典と公開 build の一致
 
@@ -84,12 +87,12 @@ Vectorizeは同じindexへin-placeでupsertするため、厳密な原子的切�
 
 GitHub Environments と environment secret は次のように分離します。
 
-| GitHub Environment | Environment secret | 同期先 |
-| --- | --- | --- |
-| `cloudflare-world-foundation-search-preview` | `CLOUDFLARE_SEARCH_PREVIEW_API_TOKEN` | preview index |
-| `cloudflare-world-foundation-search-production` | `CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN` | production index |
+| GitHub Environment                              | Cloudflare Environment secret            | OpenAI Environment secret | 同期先           |
+| ----------------------------------------------- | ---------------------------------------- | ------------------------- | ---------------- |
+| `cloudflare-world-foundation-search-preview`    | `CLOUDFLARE_SEARCH_PREVIEW_API_TOKEN`    | `OPENAI_API_KEY`          | preview index    |
+| `cloudflare-world-foundation-search-production` | `CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN` | `OPENAI_API_KEY`          | production index |
 
-Preview Environment の Deployment branches and tags は `preview`、Production Environment は `main` だけに制限します。token は Acecore account だけを resource に指定し、同期に必要な `Vectorize Read`、`Vectorize Write`、`Workers AI Read` だけを付与します。token 値を repo、設定、ログ、PR 本文へ書きません。secret は build へ渡さず、fresh runner の最終同期 step だけに渡します。
+Preview Environment の Deployment branches and tags は `preview`、Production Environment は `main` だけに制限します。Cloudflare token は Acecore account だけを resource に指定し、同期に必要な `Vectorize Read` と `Vectorize Write` だけを付与します。OpenAI key は World Foundation 検索用 project の service account key とし、Cloudflare token と共有・代用しません。どちらの値も repo、設定、ログ、PR 本文へ書きません。secret は build へ渡さず、fresh runner の最終同期 step だけに渡します。
 
 Cloudflare の Vectorize 権限は account scope で、個別 index には制限できません。GitHub Environment と同期 CLI の target 固定は誤操作を防ぎますが、Preview token 自体の権限範囲には同じ account の Production index も含まれます。完全な hard isolation が必要な場合は、別 account または狭い同期 gateway が必要です。
 
@@ -129,7 +132,7 @@ volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-searc
 volta run --node 24.18.0 npx wrangler pages dev --env preview
 ```
 
-`AI` と `SEARCH_INDEX` は `remote: true` です。ローカル確認でも実際の Preview index を参照し、Workers AI の利用量が発生します。
+`SEARCH_INDEX` は `remote: true` です。OpenAI key は gitignore 対象の `.dev.vars` に `OPENAI_API_KEY=...` として設定します。ローカル確認でも OpenAI API と実際の Preview index を参照するため、OpenAI の利用量が発生します。
 
 remote D1 migration は deployment より先に明示適用し、未適用がないことを再確認します。
 
@@ -161,8 +164,8 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 - body は 2 KiB、query は 2〜160 文字、`topK` と model は server 側で固定する。
 - 全体 300 回/分を先に、client 20 回/分を次に固定窓で D1 へ fail-closed に適用する。全体上限到達後は caller UUID ごとの row を作らない。
 - client key はブラウザの session UUID を SHA-256 化して使い、接続 IP は rate limit DBへ使わない。期限切れ row は各検索の前に削除する。
-- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は Workers AI 利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
-- browser が検索を中止した場合は `request.signal` を Workers AI へ伝播し、Vectorize query の前にも中止状態を確認する。
+- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は OpenAI project の利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
+- browser が検索を中止した場合は `request.signal` を OpenAI fetch へ伝播し、Vectorize query の前にも中止状態を確認する。
 - metadata の URL は同一 Origin の root-relative 公開 route だけを許可する。
 - response は `Cache-Control: no-store`。runtime log は request ID、stage、error class だけを記録する。
 - `SEARCH_ENABLED` を `"false"` にすると、UI と Pagefind を壊さず意味検索 API を停止できる。
@@ -172,19 +175,20 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 1. Pagefind のキーワード検索が動くことを確認する。
 2. `/api/search` の status と `X-Search-Request-Id` を確認する。
 3. Pages Functions の runtime log を request ID で追う。query 本文は記録されない。
-4. Workers AI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
+4. OpenAI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
 5. index を作り直す場合は新 index の同期と canary を終えてから binding を切り替える。旧 index を先に削除しない。
 
-## Production 有効化 gate（完了済み）
+## OpenAI / 1536 次元移行 gate
 
-初回の Preview D1 migration、Preview index 同期、固定fixture評価、Production D1 / index事前同期、GitHub-connected Pages binding確認、`SEARCH_ENABLED="true"` への切替、日英canary、Pagefind fallback確認は完了しています。今後のProduction releaseでも、同期workflowとは別の運用gateとして必要な項目を人手で再確認します。canaryに失敗した場合は `SEARCH_ENABLED` を `"false"` へ戻します。
+旧 BGE-M3 / 1024 次元構成の初回 gate は完了していますが、新しい OpenAI / 1536 次元 index は別リソースです。Preview index 作成、全件同期、固定 fixture 評価、Production index の事前同期、GitHub-connected Pages binding、OpenAI key、日英 canary、Pagefind fallback を再確認してから切り替えます。旧 1024 次元 index は rollback 用に残し、canary に失敗した場合は `SEARCH_ENABLED` を `"false"` へ戻すか旧 binding へ戻します。
 
 ## 公式資料
 
 - [Vectorize client API](https://developers.cloudflare.com/vectorize/reference/client-api/)
 - [Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)
 - [Vectorize insert best practices](https://developers.cloudflare.com/vectorize/best-practices/insert-vectors/)
-- [BGE-M3](https://developers.cloudflare.com/workers-ai/models/bge-m3/)
+- [OpenAI Embeddings API](https://developers.openai.com/api/reference/resources/embeddings/methods/create)
+- [OpenAI text-embedding-3-large](https://developers.openai.com/api/docs/models/text-embedding-3-large)
 - [Pages Functions bindings](https://developers.cloudflare.com/pages/functions/bindings/)
 - [Pages Wrangler configuration](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)
 - [Pages preview aliases and immutable deployment URLs](https://developers.cloudflare.com/pages/configuration/preview-deployments/#preview-aliases)

@@ -167,10 +167,14 @@ test('Production mutationを直列化し、attempt/success stateで重複と失�
 	const token = productionJobs.indexOf(
 		'CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN',
 	);
+	const openAiKey = productionJobs.indexOf(
+		'OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}',
+	);
 
 	assert.ok(recheck >= 0 && recheck < attempt);
 	assert.ok(attempt < mutation);
 	assert.ok(recheck < token);
+	assert.ok(recheck < openAiKey);
 	assert.ok(mutation < finalAssert);
 	assert.ok(finalAssert < success);
 });
@@ -206,6 +210,32 @@ test('Preview同期はbuild時とmutationの前後に保護branch identityを再
 		previewJobs.match(/^\s{10}verify_current_identities$/gmu)?.length,
 		2,
 	);
+	assert.match(
+		previewJobs,
+		/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/u,
+	);
+	assert.match(
+		previewJobs,
+		/if \[\[ -z "\$\{OPENAI_API_KEY:-\}" \]\]; then/u,
+	);
+});
+
+test('OpenAI keyとCloudflare Vectorize tokenを別secretとして同期stepだけへ渡す', async () => {
+	const workflow = await readFile(workflowUrl, 'utf8');
+
+	assert.equal(
+		workflow.match(
+			/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/gu,
+		)?.length,
+		2,
+	);
+	assert.equal(
+		workflow.match(
+			/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_SEARCH_(?:PREVIEW|PRODUCTION)_API_TOKEN \}\}/gu,
+		)?.length,
+		2,
+	);
+	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
 test('main向けPRは同じrepositoryのpreview branchと同一SHAのPreview証跡を要求する', async () => {
