@@ -1,0 +1,82 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "world-foundation-site",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["enable_request_signal"],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "vectorize": [
+    {
+      "binding": "SEARCH_INDEX",
+      "index_name": "world-foundation-search-preview",
+      "remote": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "SEARCH_RATE_LIMIT_DB",
+      "database_name": "world-foundation-search-preview",
+      "database_id": "8e468251-3485-4e21-a589-e058eead16e8",
+      "migrations_dir": "./migrations/search"
+    }
+  ],
+  "vars": {
+    "SEARCH_ENABLED": "true",
+    "SEARCH_MIN_SCORE": "0.40"
+  },
+  "env": {
+    "preview": {
+      "ai": {
+        "binding": "AI",
+        "remote": true
+      },
+      "vectorize": [
+        {
+          "binding": "SEARCH_INDEX",
+          "index_name": "world-foundation-search-preview",
+          "remote": true
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "SEARCH_RATE_LIMIT_DB",
+          "database_name": "world-foundation-search-preview",
+          "database_id": "8e468251-3485-4e21-a589-e058eead16e8",
+          "migrations_dir": "./migrations/search"
+        }
+      ],
+      "vars": {
+        "SEARCH_ENABLED": "true",
+        "SEARCH_MIN_SCORE": "0.40"
+      }
+    },
+    "production": {
+      "ai": {
+        "binding": "AI",
+        "remote": true
+      },
+      "vectorize": [
+        {
+          "binding": "SEARCH_INDEX",
+          "index_name": "world-foundation-search-production",
+          "remote": true
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "SEARCH_RATE_LIMIT_DB",
+          "database_name": "world-foundation-search-production",
+          "database_id": "5ad187f4-ee0c-4939-a964-1906b8c6d23b",
+          "migrations_dir": "./migrations/search"
+        }
+      ],
+      "vars": {
+        "SEARCH_ENABLED": "false",
+        "SEARCH_MIN_SCORE": "0.40"
+      }
+    }
+  }
+}

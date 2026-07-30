@@ -35,7 +35,21 @@ WORLD_FOUNDATION_SOURCE=/path/to/world-foundation npm run dev
 npm run build
 ```
 
-The build script runs `scripts/sync-content.mjs` first. Generated pages are written to `src/content/docs/` and should not be edited by hand.
+The build script runs `scripts/sync-content.mjs` first. Generated pages are written to `src/content/docs/` and should not be edited by hand. It also generates the deterministic Vectorize corpus and the public site/content build marker after Astro finishes.
+
+## Search
+
+Starlight's Pagefind search remains the primary, browser-local search. Cloudflare Vectorize adds a fail-soft “Related content” section using the multilingual `@cf/baai/bge-m3` embedding model.
+
+- Pages Function: `/api/search`
+- Preview and production use separate Vectorize indexes and D1 rate-limit databases.
+- Index writes are only performed by the protected synchronization workflow.
+- If Workers AI, Vectorize, or D1 is unavailable, Pagefind continues to work.
+- Production semantic search remains disabled until the preview evaluation and production synchronization gate passes.
+
+Starlight only mounts Pagefind and the related-content UI in a production build. Use a Pages preview or `wrangler pages dev` for rendered search QA; `astro dev` intentionally shows Starlight's development warning instead.
+
+See [the Vectorize operations guide](docs/vectorize-search.md) for resource names, synchronization safeguards, privacy controls, and release checks.
 
 ## Deployment
 

@@ -1,0 +1,166 @@
+[
+  {
+    "id": "ja-01-vision",
+    "locale": "ja",
+    "query": "この設計が最終的に実現したい、人が生存不安に縛られず好きなことに集中できる世界とは？",
+    "expected": "/docs/00-vision/",
+    "alternate": ["/"]
+  },
+  {
+    "id": "ja-02-principles",
+    "locale": "ja",
+    "query": "腐敗した仕組みから安全に離れたり、別の実装へ分岐したりするための原則は何ですか？",
+    "expected": "/docs/01-principles/",
+    "alternate": ["/docs/00-vision/"]
+  },
+  {
+    "id": "ja-03-architecture",
+    "locale": "ja",
+    "query": "なぜ信用・経済・福祉・監査などを一つの組織にまとめず、独立したモジュールとプロトコルに分けるのですか？",
+    "expected": "/docs/02-architecture/",
+    "alternate": ["/modules/"]
+  },
+  {
+    "id": "ja-04-non-goals",
+    "locale": "ja",
+    "query": "World Foundationが政府転覆や世界政府、閉鎖共同体を目指していないことはどこで説明されていますか？",
+    "expected": "/docs/04-non-goals/",
+    "alternate": ["/policies/safety/"]
+  },
+  {
+    "id": "ja-05-threat-surveillance",
+    "locale": "ja",
+    "query": "透明性を理由に私生活や通信を監視してしまうリスクと、その緩和策を知りたい",
+    "expected": "/docs/05-threat-model/",
+    "alternate": ["/modules/audit/"]
+  },
+  {
+    "id": "ja-06-roadmap-federation",
+    "locale": "ja",
+    "query": "複数組織が共通プロトコルでつながり、データを持って離脱できる段階はロードマップのどこですか？",
+    "expected": "/docs/03-roadmap/",
+    "alternate": ["/modules/federation/"]
+  },
+  {
+    "id": "ja-07-welfare",
+    "locale": "ja",
+    "query": "生活支援が服従や所属継続の条件にならないよう、福祉はどう設計しますか？",
+    "expected": "/modules/welfare/",
+    "alternate": [
+      "/docs/05-threat-model/",
+      "/docs/06-life-access-sustainability/"
+    ]
+  },
+  {
+    "id": "ja-08-economy",
+    "locale": "ja",
+    "query": "法定通貨、内部ポイント、生活アクセス、貢献記録はどう区別すべきですか？",
+    "expected": "/modules/economy/",
+    "alternate": []
+  },
+  {
+    "id": "ja-09-governance",
+    "locale": "ja",
+    "query": "管理者の善意だけに頼らず、権限集中や腐敗を防ぐガバナンスの仕組みは？",
+    "expected": "/modules/governance/",
+    "alternate": ["/docs/05-threat-model/"]
+  },
+  {
+    "id": "ja-10-federation",
+    "locale": "ja",
+    "query": "地域ごとの自治を保ちながら複数組織を相互運用する連合は、中央政府と何が違いますか？",
+    "expected": "/modules/federation/",
+    "alternate": ["/docs/02-architecture/", "/docs/03-roadmap/"]
+  },
+  {
+    "id": "ja-11-reputation",
+    "locale": "ja",
+    "query": "信用情報を単一スコアや身分階級にせず、文脈別で訂正可能にするには？",
+    "expected": "/modules/reputation/",
+    "alternate": ["/docs/05-threat-model/"]
+  },
+  {
+    "id": "ja-12-audit",
+    "locale": "ja",
+    "query": "意思決定や会計を検証可能にしつつ、私生活や匿名性を守る監査の境界は？",
+    "expected": "/modules/audit/",
+    "alternate": ["/docs/05-threat-model/"]
+  },
+  {
+    "id": "ja-13-life-access",
+    "locale": "ja",
+    "query": "食・住・通信・教育・健康への生活アクセスを、資源や地域差を考慮して持続可能にするには？",
+    "expected": "/docs/06-life-access-sustainability/",
+    "alternate": ["/modules/welfare/"]
+  },
+  {
+    "id": "ja-14-de-facto-coercion",
+    "locale": "ja",
+    "query": "便利な協力基盤が事実上必須になり、使わない人が不利益を受ける危険をどう防ぎますか？",
+    "expected": "/docs/05-threat-model/",
+    "alternate": ["/docs/01-principles/"]
+  },
+  {
+    "id": "ja-15-module-creep",
+    "locale": "ja",
+    "query": "評判が経済を支配したり監査が監視化したりする、モジュールの責任侵食をどう防ぎますか？",
+    "expected": "/docs/05-threat-model/",
+    "alternate": ["/docs/02-architecture/"]
+  },
+  {
+    "id": "en-01-vision",
+    "locale": "en",
+    "query": "What is the long-term aim of this design, and how should real progress be measured?",
+    "expected": "/en/docs/00-vision/",
+    "alternate": []
+  },
+  {
+    "id": "en-02-principles",
+    "locale": "en",
+    "query": "Which principles let people leave or fork a system when participation stops being genuinely voluntary?",
+    "expected": "/en/docs/01-principles/",
+    "alternate": ["/en/docs/00-vision/"]
+  },
+  {
+    "id": "en-03-architecture",
+    "locale": "en",
+    "query": "Why are social functions separated into replaceable modules connected through open protocols?",
+    "expected": "/en/docs/02-architecture/",
+    "alternate": ["/en/modules/"]
+  },
+  {
+    "id": "en-04-non-goals",
+    "locale": "en",
+    "query": "Where does the design reject forced state replacement, cult-like communities, surveillance, and a world government?",
+    "expected": "/en/docs/04-non-goals/",
+    "alternate": ["/en/docs/05-threat-model/"]
+  },
+  {
+    "id": "en-05-threat-exit",
+    "locale": "en",
+    "query": "How should loss of exit caused by economy, welfare, reputation, data, or affiliation lock-in be mitigated?",
+    "expected": "/en/docs/05-threat-model/",
+    "alternate": ["/en/docs/01-principles/"]
+  },
+  {
+    "id": "en-06-roadmap",
+    "locale": "en",
+    "query": "At which roadmap phase should multiple organizations interoperate while preserving local autonomy and data portability?",
+    "expected": "/en/docs/03-roadmap/",
+    "alternate": ["/en/modules/federation/"]
+  },
+  {
+    "id": "en-07-reputation",
+    "locale": "en",
+    "query": "How can reputation remain contextual and appealable instead of becoming a permanent global social score?",
+    "expected": "/en/modules/reputation/",
+    "alternate": ["/en/docs/05-threat-model/"]
+  },
+  {
+    "id": "en-08-audit",
+    "locale": "en",
+    "query": "How can audit make decisions and accounting verifiable without granting a universal right to monitor everyone?",
+    "expected": "/en/modules/audit/",
+    "alternate": ["/en/docs/05-threat-model/"]
+  }
+]
