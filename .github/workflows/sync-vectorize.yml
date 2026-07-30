@@ -12,7 +12,11 @@ on:
       - preview
   push:
     branches:
+      - main
       - preview
+  check_run:
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       target:
@@ -23,6 +27,13 @@ on:
         options:
           - preview
           - production
+  workflow_call:
+    inputs:
+      production_reconcile:
+        description: Reconcile the currently deployed Production corpus
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -31,6 +42,8 @@ permissions:
 env:
   CONTENT_REPOSITORY: acecore-systems/world-foundation
   PRODUCTION_BUILD_MARKER_URL: https://world-foundation.acecore.net/.well-known/world-foundation-build.json
+  PRODUCTION_SYNC_ATTEMPT_ARTIFACT: world-foundation-vectorize-production-attempt-v1
+  PRODUCTION_SYNC_SUCCESS_ARTIFACT: world-foundation-vectorize-production-success-v1
 
 jobs:
   verify-pull-request:
@@ -536,14 +549,254 @@ jobs:
             --expected-corpus-version "$EXPECTED_CORPUS_VERSION"
           verify_current_identities
 
+  resolve-production-deployment:
+    name: Resolve the deployed Production identity
+    if: >-
+      (
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/main'
+      ) ||
+      (
+        github.event_name == 'check_run' &&
+        github.event.check_run.app.id == 85455 &&
+        github.event.check_run.app.slug == 'cloudflare-workers-and-pages' &&
+        github.event.check_run.name == 'Cloudflare Pages' &&
+        github.event.check_run.conclusion == 'success' &&
+        github.event.check_run.head_sha == github.sha
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.target == 'production'
+      ) ||
+      (
+        inputs.production_reconcile == true &&
+        github.ref == 'refs/heads/main'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      content_commit: ${{ steps.deployed.outputs.content_commit }}
+      corpus_version: ${{ steps.deployed.outputs.corpus_version }}
+      force_sync: ${{ steps.deployed.outputs.force_sync }}
+      should_sync: ${{ steps.sync-state.outputs.should_sync }}
+      site_commit: ${{ steps.deployed.outputs.site_commit }}
+
+    steps:
+      - name: Check out protected-main deployment verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: verifier
+          persist-credentials: false
+
+      - name: Verify deployment verifier belongs to protected main
+        shell: bash
+        run: |
+          set -euo pipefail
+          verifier_commit="$(git -C verifier rev-parse HEAD)"
+          if [[ -n "$(git -C verifier status --porcelain --untracked-files=all)" ]]; then
+            echo "::error::The production verifier checkout is not clean."
+            exit 1
+          fi
+          git -C verifier fetch --no-tags origin \
+            "+refs/heads/main:refs/remotes/origin/main"
+          git -C verifier merge-base --is-ancestor \
+            "$verifier_commit" refs/remotes/origin/main
+
+      - name: Set up verifier Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: verifier/.node-version
+
+      - name: Resolve the exact deployed build
+        id: deployed
+        shell: bash
+        env:
+          CHECK_RUN_JSON: ${{ toJSON(github.event.check_run) }}
+          EXPECTED_SITE_COMMIT: >-
+            ${{
+              github.event_name == 'push' && github.sha ||
+              github.event_name == 'check_run' && github.event.check_run.head_sha ||
+              ''
+            }}
+          FORCE_SYNC: >-
+            ${{
+              github.event_name == 'workflow_dispatch' &&
+              inputs.target == 'production'
+            }}
+          IS_CLOUDFLARE_CHECK: >-
+            ${{
+              github.event_name == 'check_run' &&
+              github.event.check_run.app.id == 85455 &&
+              github.event.check_run.app.slug == 'cloudflare-workers-and-pages'
+            }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$EXPECTED_SITE_COMMIT" ]]; then
+            git -C verifier cat-file -e "${EXPECTED_SITE_COMMIT}^{commit}"
+            git -C verifier merge-base --is-ancestor \
+              "$EXPECTED_SITE_COMMIT" refs/remotes/origin/main
+          fi
+          if [[ "$IS_CLOUDFLARE_CHECK" == "true" ]]; then
+            check_identity="$(
+              node verifier/scripts/resolve-cloudflare-pages-check.mjs
+            )"
+            read -r check_site_commit deployment_marker_url <<< "$(
+              CHECK_IDENTITY_JSON="$check_identity" node -e \
+                "const value=JSON.parse(process.env.CHECK_IDENTITY_JSON); console.log(value.siteCommit, value.deploymentMarkerUrl)"
+            )"
+            if [[ "$check_site_commit" != "$EXPECTED_SITE_COMMIT" ]]; then
+              echo "::error::The Pages check identity changed during validation."
+              exit 1
+            fi
+            deployment_marker="$(
+              node verifier/scripts/wait-for-deployment.mjs \
+                "$deployment_marker_url" \
+                "$EXPECTED_SITE_COMMIT"
+            )"
+            printf '%s\n' "$deployment_marker" \
+              > "$RUNNER_TEMP/cloudflare-deployment-marker.json"
+            marker="$(
+              node verifier/scripts/wait-for-deployment.mjs \
+                "$PRODUCTION_BUILD_MARKER_URL" \
+                --wait-for-current \
+                "$RUNNER_TEMP/cloudflare-deployment-marker.json"
+            )"
+          elif [[ -n "$EXPECTED_SITE_COMMIT" ]]; then
+            marker="$(
+              node verifier/scripts/wait-for-deployment.mjs \
+                "$PRODUCTION_BUILD_MARKER_URL" \
+                "$EXPECTED_SITE_COMMIT"
+            )"
+          else
+            marker="$(
+              node verifier/scripts/wait-for-deployment.mjs \
+                "$PRODUCTION_BUILD_MARKER_URL" \
+                --print-current
+            )"
+          fi
+          MARKER_JSON="$marker" node <<'NODE' >> "$GITHUB_OUTPUT"
+          const marker = JSON.parse(process.env.MARKER_JSON)
+          const commitPattern = /^[0-9a-f]{40}$/
+          const versionPattern = /^[0-9a-f]{20}$/
+          if (
+            marker.schemaVersion !== 1 ||
+            !commitPattern.test(marker.siteCommit) ||
+            !commitPattern.test(marker.contentCommit) ||
+            !versionPattern.test(marker.searchCorpusVersion) ||
+            (
+              process.env.EXPECTED_SITE_COMMIT &&
+              marker.siteCommit !== process.env.EXPECTED_SITE_COMMIT
+            )
+          ) {
+            throw new Error('The deployed build marker identity is invalid.')
+          }
+          console.log(`site_commit=${marker.siteCommit}`)
+          console.log(`content_commit=${marker.contentCommit}`)
+          console.log(`corpus_version=${marker.searchCorpusVersion}`)
+          NODE
+          echo "force_sync=$FORCE_SYNC" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether the latest successful sync already matches
+        id: sync-state
+        shell: bash
+        env:
+          CONTENT_COMMIT: ${{ steps.deployed.outputs.content_commit }}
+          CORPUS_VERSION: ${{ steps.deployed.outputs.corpus_version }}
+          FORCE_SYNC: ${{ steps.deployed.outputs.force_sync }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          SITE_COMMIT: ${{ steps.deployed.outputs.site_commit }}
+        run: |
+          set -euo pipefail
+          if [[ "$FORCE_SYNC" == "true" ]]; then
+            echo "should_sync=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          state_dir="$RUNNER_TEMP/production-sync-state"
+          mkdir -p "$state_dir"
+          check_latest_success() {
+            if ! gh api --paginate --slurp \
+              "repos/$REPOSITORY/actions/artifacts?name=$PRODUCTION_SYNC_ATTEMPT_ARTIFACT&per_page=100" \
+              > "$state_dir/attempts.json"; then
+              return 2
+            fi
+            if ! gh api --paginate --slurp \
+              "repos/$REPOSITORY/actions/artifacts?name=$PRODUCTION_SYNC_SUCCESS_ARTIFACT&per_page=100" \
+              > "$state_dir/successes.json"; then
+              return 2
+            fi
+            selection="$(
+              node verifier/scripts/production-sync-state.mjs \
+                select-latest-success \
+                "$state_dir/attempts.json" \
+                "$state_dir/successes.json" \
+                "$REPOSITORY_ID"
+            )" || return 1
+            [[ -n "$selection" ]] || return 1
+            read -r artifact_id workflow_run_id <<< "$selection"
+            if ! gh api \
+              "repos/$REPOSITORY/actions/artifacts/$artifact_id/zip" \
+              > "$state_dir/success.zip"; then
+              return 2
+            fi
+            if ! unzip -p "$state_dir/success.zip" receipt.json \
+              > "$state_dir/receipt.json"; then
+              return 2
+            fi
+            if ! gh api \
+              "repos/$REPOSITORY/actions/runs/$workflow_run_id" \
+              > "$state_dir/workflow-run.json"; then
+              return 2
+            fi
+            node verifier/scripts/production-sync-state.mjs \
+              verify-success \
+              "$state_dir/receipt.json" \
+              "$state_dir/attempts.json" \
+              "$state_dir/successes.json" \
+              "$state_dir/workflow-run.json" \
+              "$REPOSITORY_ID" \
+              "$SITE_COMMIT" \
+              "$CONTENT_COMMIT" \
+              "$CORPUS_VERSION"
+          }
+
+          check_status=0
+          check_latest_success || check_status=$?
+          if [[ "$check_status" == "0" ]]; then
+            echo "The latest successful Production sync already matches the public build."
+            echo "should_sync=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$check_status" == "1" ]]; then
+            echo "No matching latest Production sync state was proven; a sync is required."
+            echo "should_sync=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::GitHub could not provide the Production sync state."
+            exit 1
+          fi
+
   build-production-corpus:
     name: Build the deployed production corpus without secrets
-    if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/main' &&
-      inputs.target == 'production'
+    needs:
+      - resolve-production-deployment
+    if: needs.resolve-production-deployment.outputs.should_sync == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: >-
+        world-foundation-vectorize-production-build-${{
+          github.event_name == 'workflow_dispatch' && github.run_id ||
+          format(
+            '{0}-{1}-{2}',
+            needs.resolve-production-deployment.outputs.site_commit,
+            needs.resolve-production-deployment.outputs.content_commit,
+            needs.resolve-production-deployment.outputs.corpus_version
+          )
+        }}
+      cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
     outputs:
       artifact_name: ${{ steps.identity.outputs.artifact_name }}
       content_commit: ${{ steps.deployed.outputs.content_commit }}
@@ -579,32 +832,26 @@ jobs:
         with:
           node-version-file: verifier/.node-version
 
-      - name: Resolve the exact deployed build
+      - name: Use the preflight deployment identity
         id: deployed
         shell: bash
+        env:
+          CONTENT_COMMIT: ${{ needs.resolve-production-deployment.outputs.content_commit }}
+          CORPUS_VERSION: ${{ needs.resolve-production-deployment.outputs.corpus_version }}
+          SITE_COMMIT: ${{ needs.resolve-production-deployment.outputs.site_commit }}
         run: |
           set -euo pipefail
-          marker="$(
-            node verifier/scripts/wait-for-deployment.mjs \
-              "$PRODUCTION_BUILD_MARKER_URL" \
-              --print-current
-          )"
-          MARKER_JSON="$marker" node <<'NODE' >> "$GITHUB_OUTPUT"
-          const marker = JSON.parse(process.env.MARKER_JSON)
-          const commitPattern = /^[0-9a-f]{40}$/
-          const versionPattern = /^[0-9a-f]{20}$/
-          if (
-            marker.schemaVersion !== 1 ||
-            !commitPattern.test(marker.siteCommit) ||
-            !commitPattern.test(marker.contentCommit) ||
-            !versionPattern.test(marker.searchCorpusVersion)
-          ) {
-            throw new Error('The deployed build marker identity is invalid.')
-          }
-          console.log(`site_commit=${marker.siteCommit}`)
-          console.log(`content_commit=${marker.contentCommit}`)
-          console.log(`corpus_version=${marker.searchCorpusVersion}`)
-          NODE
+          if [[ ! "$SITE_COMMIT" =~ ^[0-9a-f]{40}$ ]] ||
+             [[ ! "$CONTENT_COMMIT" =~ ^[0-9a-f]{40}$ ]] ||
+             [[ ! "$CORPUS_VERSION" =~ ^[0-9a-f]{20}$ ]]; then
+            echo "::error::The preflight deployment identity is invalid."
+            exit 1
+          fi
+          {
+            echo "site_commit=$SITE_COMMIT"
+            echo "content_commit=$CONTENT_COMMIT"
+            echo "corpus_version=$CORPUS_VERSION"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify the deployed site commit belongs to protected main
         shell: bash
@@ -751,6 +998,7 @@ jobs:
   sync-production:
     name: Sync the currently deployed production corpus
     needs:
+      - resolve-production-deployment
       - build-production-corpus
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -761,10 +1009,10 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - name: Check out the exact protected-main tooling
+      - name: Check out protected-main Production tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.build-production-corpus.outputs.site_commit }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           path: tooling
           persist-credentials: false
@@ -772,13 +1020,13 @@ jobs:
       - name: Verify the tooling commit still belongs to protected main
         shell: bash
         env:
-          EXPECTED_SITE_COMMIT: ${{ needs.build-production-corpus.outputs.site_commit }}
+          EXPECTED_TOOLING_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
           tooling_commit="$(git -C tooling rev-parse HEAD)"
           git -C tooling fetch --no-tags origin \
             "+refs/heads/main:refs/remotes/origin/main"
-          if [[ "$tooling_commit" != "$EXPECTED_SITE_COMMIT" ]]; then
+          if [[ "$tooling_commit" != "$EXPECTED_TOOLING_COMMIT" ]]; then
             echo "::error::The privileged tooling checkout changed identity."
             exit 1
           fi
@@ -826,7 +1074,129 @@ jobs:
           --assert-current
           payload/corpus.json
 
+      - name: Recheck the latest Production sync state after concurrency wait
+        id: sync-state
+        shell: bash
+        env:
+          CONTENT_COMMIT: ${{ needs.build-production-corpus.outputs.content_commit }}
+          CORPUS_SHA256: ${{ needs.build-production-corpus.outputs.corpus_sha256 }}
+          CORPUS_VERSION: ${{ needs.build-production-corpus.outputs.corpus_version }}
+          FORCE_SYNC: ${{ needs.resolve-production-deployment.outputs.force_sync }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          SITE_COMMIT: ${{ needs.build-production-corpus.outputs.site_commit }}
+        run: |
+          set -euo pipefail
+          if [[ "$FORCE_SYNC" == "true" ]]; then
+            echo "should_sync=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          state_dir="$RUNNER_TEMP/production-sync-state"
+          mkdir -p "$state_dir"
+          check_latest_success() {
+            if ! gh api --paginate --slurp \
+              "repos/$REPOSITORY/actions/artifacts?name=$PRODUCTION_SYNC_ATTEMPT_ARTIFACT&per_page=100" \
+              > "$state_dir/attempts.json"; then
+              return 2
+            fi
+            if ! gh api --paginate --slurp \
+              "repos/$REPOSITORY/actions/artifacts?name=$PRODUCTION_SYNC_SUCCESS_ARTIFACT&per_page=100" \
+              > "$state_dir/successes.json"; then
+              return 2
+            fi
+            selection="$(
+              node tooling/scripts/production-sync-state.mjs \
+                select-latest-success \
+                "$state_dir/attempts.json" \
+                "$state_dir/successes.json" \
+                "$REPOSITORY_ID"
+            )" || return 1
+            [[ -n "$selection" ]] || return 1
+            read -r artifact_id workflow_run_id <<< "$selection"
+            if ! gh api \
+              "repos/$REPOSITORY/actions/artifacts/$artifact_id/zip" \
+              > "$state_dir/success.zip"; then
+              return 2
+            fi
+            if ! unzip -p "$state_dir/success.zip" receipt.json \
+              > "$state_dir/receipt.json"; then
+              return 2
+            fi
+
+            for check in 1 2 3 4 5 6; do
+              if ! gh api \
+                "repos/$REPOSITORY/actions/runs/$workflow_run_id" \
+                > "$state_dir/workflow-run.json"; then
+                return 2
+              fi
+              run_status="$(
+                RUN_FILE="$state_dir/workflow-run.json" node -e \
+                  "const run=require(process.env.RUN_FILE); process.stdout.write(String(run.status || ''))"
+              )" || return 2
+              if [[ "$run_status" == "completed" ]]; then
+                break
+              fi
+              if [[ "$check" == "6" ]]; then
+                return 1
+              fi
+              sleep 3
+            done
+
+            node tooling/scripts/production-sync-state.mjs \
+              verify-success \
+              "$state_dir/receipt.json" \
+              "$state_dir/attempts.json" \
+              "$state_dir/successes.json" \
+              "$state_dir/workflow-run.json" \
+              "$REPOSITORY_ID" \
+              "$SITE_COMMIT" \
+              "$CONTENT_COMMIT" \
+              "$CORPUS_VERSION" \
+              "$CORPUS_SHA256"
+          }
+
+          check_status=0
+          check_latest_success || check_status=$?
+          if [[ "$check_status" == "0" ]]; then
+            echo "A serialized Production sync completed while this run was waiting."
+            echo "should_sync=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$check_status" == "1" ]]; then
+            echo "The latest Production state does not prove this corpus is current."
+            echo "should_sync=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::GitHub could not provide the Production sync state."
+            exit 1
+          fi
+
+      - name: Stage the Production sync attempt state
+        if: steps.sync-state.outputs.should_sync == 'true'
+        shell: bash
+        env:
+          CORPUS_SHA256: ${{ needs.build-production-corpus.outputs.corpus_sha256 }}
+        run: >-
+          node tooling/scripts/production-sync-state.mjs
+          write-attempt
+          payload/corpus.json
+          "$CORPUS_SHA256"
+          "$GITHUB_RUN_ID"
+          "$GITHUB_RUN_ATTEMPT"
+          sync-attempt/receipt.json
+
+      - name: Publish the Production sync attempt state
+        id: attempt-artifact
+        if: steps.sync-state.outputs.should_sync == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.PRODUCTION_SYNC_ATTEMPT_ARTIFACT }}
+          path: sync-attempt/receipt.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 90
+
       - name: Sync the production index
+        if: steps.sync-state.outputs.should_sync == 'true'
         shell: bash
         env:
           CLOUDFLARE_ACCOUNT_ID: db9b62f409f463da7acbcc374b8385d0
@@ -855,3 +1225,29 @@ jobs:
             "$PRODUCTION_BUILD_MARKER_URL" \
             --assert-current \
             payload/corpus.json
+
+      - name: Stage the successful Production sync state
+        if: steps.sync-state.outputs.should_sync == 'true'
+        shell: bash
+        env:
+          ATTEMPT_ARTIFACT_ID: ${{ steps.attempt-artifact.outputs.artifact-id }}
+          CORPUS_SHA256: ${{ needs.build-production-corpus.outputs.corpus_sha256 }}
+        run: >-
+          node tooling/scripts/production-sync-state.mjs
+          write-success
+          payload/corpus.json
+          "$CORPUS_SHA256"
+          "$GITHUB_RUN_ID"
+          "$GITHUB_RUN_ATTEMPT"
+          "$ATTEMPT_ARTIFACT_ID"
+          sync-success/receipt.json
+
+      - name: Publish the successful Production sync state
+        if: steps.sync-state.outputs.should_sync == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.PRODUCTION_SYNC_SUCCESS_ARTIFACT }}
+          path: sync-success/receipt.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 90

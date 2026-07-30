@@ -141,6 +141,51 @@ export async function waitForDeployment(
 	);
 }
 
+export async function waitForExactBuild(
+	targetUrl,
+	expected,
+	{
+		timeoutMs = Number(process.env.DEPLOYMENT_WAIT_TIMEOUT_MS || 600_000),
+		pollMs = Number(process.env.DEPLOYMENT_WAIT_POLL_MS || 15_000),
+		fetchImpl = globalThis.fetch,
+		fetchTimeoutMs = Number(process.env.DEPLOYMENT_FETCH_TIMEOUT_MS || 10_000),
+		logger = console,
+		sleepImpl = (milliseconds) =>
+			new Promise((resolvePromise) =>
+				setTimeout(resolvePromise, milliseconds),
+			),
+	} = {},
+) {
+	const normalizedExpected = normalizeExpectedBuild(expected);
+	const deadline = Date.now() + timeoutMs;
+
+	while (Date.now() < deadline) {
+		try {
+			const deployed = await readDeployedBuild(targetUrl, {
+				fetchImpl,
+				fetchTimeoutMs,
+			});
+			if (buildsMatch(deployed, normalizedExpected)) {
+				logger.log(
+					JSON.stringify({
+						event: 'pages_exact_build_ready',
+						...deployed,
+					}),
+				);
+				return deployed;
+			}
+		} catch {
+			// A deployment can be temporarily unreachable while Cloudflare promotes it.
+		}
+
+		await sleepImpl(pollMs);
+	}
+
+	throw new Error(
+		`Timed out waiting for exact Pages build ${normalizedExpected.siteCommit}/${normalizedExpected.contentCommit}/${normalizedExpected.searchCorpusVersion}.`,
+	);
+}
+
 function normalizeExpectedBuild(value) {
 	const searchCorpusVersion = String(value?.version || value?.searchCorpusVersion || '')
 		.trim()
@@ -156,6 +201,14 @@ function normalizeExpectedBuild(value) {
 		contentCommit: normalizeCommit(value?.contentCommit, 'content'),
 		searchCorpusVersion,
 	};
+}
+
+function buildsMatch(actual, expected) {
+	return (
+		actual.siteCommit === expected.siteCommit &&
+		actual.contentCommit === expected.contentCommit &&
+		actual.searchCorpusVersion === expected.searchCorpusVersion
+	);
 }
 
 function normalizeCommit(value, label) {
@@ -182,7 +235,7 @@ if (isDirectExecution()) {
 
 	if (!targetUrl || !command) {
 		throw new Error(
-			'Usage: node scripts/wait-for-deployment.mjs <build-meta-url> <site-commit|--print-current|--assert-current> [corpus-file]',
+			'Usage: node scripts/wait-for-deployment.mjs <build-meta-url> <site-commit|--print-current|--assert-current|--wait-for-current> [corpus-file]',
 		);
 	}
 
@@ -195,6 +248,13 @@ if (isDirectExecution()) {
 		}
 		const corpus = JSON.parse(await readFile(resolve(corpusFile), 'utf8'));
 		await assertDeployedBuild(targetUrl, corpus);
+	} else if (command === '--wait-for-current') {
+		const markerFile = process.argv[4];
+		if (!markerFile) {
+			throw new Error('--wait-for-current requires a build marker JSON file.');
+		}
+		const marker = JSON.parse(await readFile(resolve(markerFile), 'utf8'));
+		await waitForExactBuild(targetUrl, marker);
 	} else {
 		await waitForDeployment(targetUrl, command);
 	}
