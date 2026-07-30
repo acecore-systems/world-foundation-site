@@ -6,9 +6,19 @@
     "sync:content": "node scripts/sync-content.mjs",
     "dev": "npm run sync:content && astro dev",
     "start": "npm run dev",
-    "build": "npm run sync:content && astro build",
+    "build": "npm run sync:content && astro build && npm run build:search-corpus && npm run write:build-meta",
+    "build:search-corpus": "node scripts/build-search-corpus.mjs",
+    "write:build-meta": "node scripts/write-build-meta.mjs",
     "fetch:content": "node scripts/fetch-content.mjs",
     "build:cloudflare": "npm run fetch:content && npm run build",
+    "test:search": "node --experimental-strip-types --test tests/cloudflare-pages-check.test.mjs tests/deployment-marker.test.mjs tests/production-sync-state.test.mjs tests/search-api.test.mjs tests/search-corpus.test.mjs tests/search-evaluation.test.mjs tests/vectorize-sync.test.mjs tests/vectorize-workflow.test.mjs",
+    "evaluate:search": "node scripts/evaluate-search.mjs",
+    "sync:vectorize": "node scripts/sync-vectorize.mjs",
+    "sync:vectorize:dry-run": "node scripts/sync-vectorize.mjs --dry-run --target preview",
+    "types:cloudflare": "wrangler types functions/cloudflare-env.d.ts --env-interface CloudflareEnv --include-runtime false",
+    "types:cloudflare:check": "wrangler types functions/cloudflare-env.d.ts --env-interface CloudflareEnv --include-runtime false --check",
+    "check:pages-config": "wrangler pages functions build --outdir .wrangler/pages-functions",
+    "typecheck:functions": "tsc --project tsconfig.functions.json",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -23,6 +33,13 @@
     "node": ">=24.18.0"
   },
   "allowScripts": {
-    "esbuild@0.28.1": true
+    "esbuild@0.28.1": true,
+    "workerd@1.20260722.1": true
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260726.1",
+    "cheerio": "^1.2.0",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.115.0"
   }
 }

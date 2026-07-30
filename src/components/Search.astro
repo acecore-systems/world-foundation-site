@@ -1,0 +1,370 @@
+---
+import DefaultSearch from '@astrojs/starlight/components/Search.astro';
+---
+
+<DefaultSearch {...Astro.props} />
+
+<template id="world-foundation-semantic-search">
+	<p
+		id="world-foundation-semantic-search-privacy"
+		class="semantic-search__privacy"
+		data-semantic-privacy
+	></p>
+	<section class="semantic-search" data-semantic-search hidden>
+		<div class="semantic-search__heading">
+			<h2 data-semantic-heading></h2>
+			<span aria-hidden="true">Vectorize</span>
+		</div>
+		<p class="semantic-search__status" data-semantic-status role="status" aria-live="polite"></p>
+		<ol class="semantic-search__results" data-semantic-results></ol>
+	</section>
+</template>
+
+<script>
+	type SearchResult = {
+		excerpt?: string;
+		id: string;
+		section?: string;
+		title: string;
+		url: string;
+	};
+
+	type SearchResponse = {
+		ok?: boolean;
+		results?: SearchResult[];
+	};
+
+	const translations = {
+		ja: {
+			heading: '関連する内容',
+			searching: '意味が近い資料を検索しています…',
+			empty: '関連する資料は見つかりませんでした。',
+			found: (count: number) => `関連する資料が${count}件見つかりました。`,
+			privacy:
+				'関連検索では、入力語を Cloudflare Workers AI に送信して公開資料と照合します。',
+		},
+		en: {
+			heading: 'Related content',
+			searching: 'Looking for semantically related documents…',
+			empty: 'No related documents were found.',
+			found: (count: number) =>
+				`${count} related ${count === 1 ? 'document' : 'documents'} found.`,
+			privacy:
+				'Related search sends your query to Cloudflare Workers AI and compares it with public documents.',
+		},
+	} as const;
+
+	const root = document.querySelector<HTMLElement>('site-search');
+	const template = document.querySelector<HTMLTemplateElement>(
+		'#world-foundation-semantic-search',
+	);
+	const container = root?.querySelector<HTMLElement>('.search-container');
+
+	if (root && template && container && !root.dataset.semanticSearchReady) {
+		root.dataset.semanticSearchReady = 'true';
+		container.append(template.content.cloneNode(true));
+
+		const panel = container.querySelector<HTMLElement>('[data-semantic-search]');
+		const heading = panel?.querySelector<HTMLElement>('[data-semantic-heading]');
+		const status = panel?.querySelector<HTMLElement>('[data-semantic-status]');
+		const results = panel?.querySelector<HTMLOListElement>('[data-semantic-results]');
+		const privacy = container.querySelector<HTMLElement>('[data-semantic-privacy]');
+		const locale = document.documentElement.lang.toLowerCase().startsWith('en')
+			? 'en'
+			: 'ja';
+		const copy = translations[locale];
+
+		if (panel && heading && status && results && privacy) {
+			heading.textContent = copy.heading;
+			privacy.textContent = copy.privacy;
+
+			let debounceTimer: number | undefined;
+			let activeController: AbortController | undefined;
+			let requestSequence = 0;
+
+			const cancelPendingSearch = () => {
+				window.clearTimeout(debounceTimer);
+				debounceTimer = undefined;
+				requestSequence += 1;
+				activeController?.abort();
+				activeController = undefined;
+			};
+
+			const hidePanel = () => {
+				panel.hidden = true;
+				panel.removeAttribute('aria-busy');
+				status.textContent = '';
+				results.replaceChildren();
+			};
+
+			const renderResults = (items: SearchResult[]) => {
+				results.replaceChildren();
+
+				for (const item of items) {
+					if (
+						typeof item?.url !== 'string' ||
+						!item.url.startsWith('/') ||
+						item.url.startsWith('//') ||
+						item.url.includes('\\') ||
+						typeof item.title !== 'string'
+					) {
+						continue;
+					}
+
+					const resolvedUrl = new URL(item.url, window.location.origin);
+					if (resolvedUrl.origin !== window.location.origin) continue;
+
+					const link = document.createElement('a');
+					link.href = `${resolvedUrl.pathname}${resolvedUrl.search}${resolvedUrl.hash}`;
+					link.className = 'semantic-search__result';
+
+					const title = document.createElement('strong');
+					title.textContent = item.title;
+					link.append(title);
+
+					if (item.section && item.section !== item.title) {
+						const section = document.createElement('span');
+						section.className = 'semantic-search__section';
+						section.textContent = item.section;
+						link.append(section);
+					}
+
+					if (item.excerpt) {
+						const excerpt = document.createElement('span');
+						excerpt.className = 'semantic-search__excerpt';
+						excerpt.textContent = item.excerpt;
+						link.append(excerpt);
+					}
+
+					const listItem = document.createElement('li');
+					listItem.append(link);
+					results.append(listItem);
+				}
+
+				status.textContent =
+					results.childElementCount === 0
+						? copy.empty
+						: copy.found(results.childElementCount);
+				panel.removeAttribute('aria-busy');
+				panel.hidden = false;
+			};
+
+			const runSearch = async (query: string, sequence: number) => {
+				if (sequence !== requestSequence) return;
+				activeController?.abort();
+				const controller = new AbortController();
+				activeController = controller;
+				const timeout = window.setTimeout(() => controller.abort(), 8_000);
+
+				panel.hidden = false;
+				panel.setAttribute('aria-busy', 'true');
+				results.replaceChildren();
+				status.textContent = copy.searching;
+
+				try {
+					const response = await fetch('/api/search', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							'X-World-Foundation-Search-Client': getSearchClientId(),
+						},
+						body: JSON.stringify({ query, locale }),
+						credentials: 'same-origin',
+						signal: controller.signal,
+					});
+
+					if (sequence !== requestSequence) return;
+					if (!response.ok) {
+						hidePanel();
+						return;
+					}
+
+					const payload = (await response.json()) as SearchResponse;
+					if (sequence !== requestSequence) return;
+					if (payload.ok !== true) {
+						hidePanel();
+						return;
+					}
+					renderResults(Array.isArray(payload.results) ? payload.results : []);
+				} catch {
+					if (sequence === requestSequence) hidePanel();
+				} finally {
+					window.clearTimeout(timeout);
+					if (activeController === controller) activeController = undefined;
+				}
+			};
+
+			const bindInput = (input: HTMLInputElement) => {
+				if (input.dataset.semanticSearchBound) return;
+				input.dataset.semanticSearchBound = 'true';
+				const descriptions = new Set(
+					(input.getAttribute('aria-describedby') || '')
+						.split(/\s+/u)
+						.filter(Boolean),
+				);
+				descriptions.add(privacy.id);
+				input.setAttribute('aria-describedby', [...descriptions].join(' '));
+
+				let isComposing = false;
+				const scheduleSearch = () => {
+					window.clearTimeout(debounceTimer);
+					activeController?.abort();
+					requestSequence += 1;
+
+					const query = normalizeQuery(input.value);
+					if ([...query].length < 2) {
+						hidePanel();
+						return;
+					}
+
+					const sequence = requestSequence;
+					debounceTimer = window.setTimeout(
+						() => void runSearch(query, sequence),
+						450,
+					);
+				};
+
+				input.addEventListener('compositionstart', () => {
+					isComposing = true;
+					cancelPendingSearch();
+					hidePanel();
+				});
+				input.addEventListener('compositionend', () => {
+					isComposing = false;
+					scheduleSearch();
+				});
+				input.addEventListener('input', (event) => {
+					if (isComposing || (event as InputEvent).isComposing) return;
+					scheduleSearch();
+				});
+			};
+
+			const bindPagefindInput = () => {
+				const input = root.querySelector<HTMLInputElement>(
+					'.pagefind-ui__search-input',
+				);
+				if (input) bindInput(input);
+			};
+
+			bindPagefindInput();
+			const observer = new MutationObserver(bindPagefindInput);
+			observer.observe(container, { childList: true, subtree: true });
+
+			root.querySelector('dialog')?.addEventListener('close', () => {
+				cancelPendingSearch();
+				hidePanel();
+			});
+			window.addEventListener('pagehide', cancelPendingSearch, { once: true });
+		}
+	}
+
+	function normalizeQuery(value: string): string {
+		return value.normalize('NFKC').replace(/\s+/gu, ' ').trim();
+	}
+
+	function getSearchClientId(): string {
+		const key = 'world-foundation-search-client';
+		try {
+			const current = sessionStorage.getItem(key);
+			if (current) return current;
+			const created = crypto.randomUUID();
+			sessionStorage.setItem(key, created);
+			return created;
+		} catch {
+			return crypto.randomUUID();
+		}
+	}
+</script>
+
+<style is:global>
+	@layer starlight.core {
+		.semantic-search {
+			margin-block-start: 1.25rem;
+			border-block-start: 1px solid var(--sl-color-gray-5);
+			padding-block-start: 1rem;
+		}
+
+		.semantic-search[hidden] {
+			display: none;
+		}
+
+		.semantic-search__heading {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 1rem;
+			margin-block-end: 0.75rem;
+		}
+
+		.semantic-search__heading h2 {
+			margin: 0;
+			color: var(--sl-color-white);
+			font-size: var(--sl-text-lg);
+		}
+
+		.semantic-search__heading > span {
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 999px;
+			padding: 0.15rem 0.5rem;
+			color: var(--sl-color-gray-3);
+			font-size: var(--sl-text-2xs);
+			letter-spacing: 0.04em;
+		}
+
+		.semantic-search__status,
+		.semantic-search__privacy {
+			margin: 0;
+			color: var(--sl-color-gray-3);
+			font-size: var(--sl-text-xs);
+		}
+
+		.semantic-search__results {
+			display: grid;
+			gap: 0.5rem;
+			margin: 0;
+			padding: 0;
+			list-style: none;
+		}
+
+		.semantic-search__result {
+			display: grid;
+			gap: 0.25rem;
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 0.4rem;
+			padding: 0.75rem 0.875rem;
+			background: var(--sl-color-black);
+			color: var(--sl-color-gray-2);
+			text-decoration: none;
+		}
+
+		.semantic-search__result:hover,
+		.semantic-search__result:focus-visible {
+			border-color: var(--sl-color-accent-high);
+			background: var(--sl-color-accent-low);
+		}
+
+		.semantic-search__result strong {
+			color: var(--sl-color-white);
+			font-size: var(--sl-text-sm);
+		}
+
+		.semantic-search__section {
+			color: var(--sl-color-text-accent);
+			font-size: var(--sl-text-xs);
+		}
+
+		.semantic-search__excerpt {
+			display: -webkit-box;
+			overflow: hidden;
+			color: var(--sl-color-gray-3);
+			font-size: var(--sl-text-xs);
+			line-height: 1.55;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
+		}
+
+		.semantic-search__privacy {
+			margin-block: 0.75rem 0;
+		}
+	}
+</style>
