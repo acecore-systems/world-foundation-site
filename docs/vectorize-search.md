@@ -36,7 +36,7 @@ model、dimensions、metric は既存 index 内で混在させません。変更
 
 Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の Dashboard 設定は `wrangler pages download config world-foundation-site` で取得し、project 名、output directory、compatibility date、空の production environment だけであることを確認済みです。
 
-Production の `SEARCH_ENABLED` は初期状態で `"false"` にします。Preview 同期と検索評価、Production index の事前同期、Pages binding の確認がすべて終わるまで公開 API を有効化しません。
+Production の初回 gate は完了しており、現在の `SEARCH_ENABLED` は `"true"` です。障害時に意味検索だけを止められるよう、`"false"` へ戻す fail-safe は維持します。
 
 ## 原典と公開 build の一致
 
@@ -49,7 +49,7 @@ World Foundation は site repo と原典 repo が分かれています。公開 
 
 production 同期は、公開 marker が示す両 commit を checkout して corpus を再生成し、同期直前にも公開 marker と 3 値が一致する場合だけ実行します。site の push 後に Pages deployment が失敗した場合や、build 中に原典の公開状態が変わった場合は index を更新しません。
 
-原典だけが更新された場合は、既存の Pages Deploy Hook がサイトを再構築します。初期リリース中の Production index は自動更新せず、保護済み `preview` branchで評価した後、公開 marker を確認して手動 workflow で同期します。
+`main` push では、custom domain の marker がその exact site SHA へ切り替わるまで待ちます。原典だけが更新された場合は、既存の Pages Deploy Hook がサイトを再構築します。Cloudflare Pages の成功 check から immutable な deployment URL を検証して新しい 3 値を取得し、custom domain に同じ 3 値が現れてから自動同期します。同じ site SHA のまま content commit だけが変わる場合も、旧 marker を即採用しません。
 
 ## GitHub Actions と secret
 
@@ -58,15 +58,29 @@ production 同期は、公開 marker が示す両 commit を checkout して cor
 - Pull Request: secret なしで build、検索テスト、型検査、Pages Functions bundle、同期 dry-run を検証。
 - `preview` push: review済み `preview` と原典 `main` を preview index へ同期。
 - 手動 `preview`: 最新 `preview` と原典 `main` を preview index へ再同期。
-- 手動 `production`: 現在公開中の組み合わせを production index へ再同期。
+- `main` push: exact site SHA の公開完了後、現在公開中の組み合わせを production index へ自動同期。
+- Cloudflare Pages Production check: GitHubがexternal appの`check_run`を配信した場合、Deploy Hookを含む immutable deployment と custom domain の 3 値一致後に自動同期。
+- `.github/workflows/reconcile-vectorize.yml`: 毎時 7、22、37、52 分に公開中の組み合わせを再照合。
+- 手動 `production`: 同期済み判定を無視し、現在公開中の組み合わせを production index へ強制再同期・修復。
 
 通常の変更は feature branch から `preview` への Pull Request、Preview deploy / 検索評価、`preview` から `main` への Pull Request の順に進めます。`main` 向けPRは同じrepositoryの `preview` branchだけを許可します。
 
-原典 repository の `main` 更新だけでは site repository の required check は再実行されません。初期リリースでは Production 検索を無効のままにし、`preview` から `main` を merge する直前に検証 workflow を再実行して、artifact、Preview marker、原典 commit が一致することを確認します。将来この運用ゲートをなくす場合は、原典 commit を site commit に記録して Pull Request の入力へ固定します。
+原典 repository の `main` 更新だけでは site repository の Pull Request check は再実行されません。公開後の Production 同期は、Deploy Hook が作る Cloudflare Pages check と15分ごとの再照合が補完します。GitHubは再帰防止のため、head SHAがGitHub Actionsに関連付くcheck eventを抑止する場合があります。Pages checkのeventが届かない場合や形式を検証できない場合も、定期再照合が公開markerを検出します。marker不一致runではmutationせず、次の定期再照合または手動 Production dispatchへ倒します。
 
-初期リリースでは `main` push と定期 schedule から Production 同期を起動しません。Preview 評価、Production 事前同期、公開 canary を完了した後も、自動同期を有効化する場合は別 Pull Request で同期方式と原子的な corpus 切替をレビューします。
+自動runは、Production mutationの直前に固定名の `attempt` artifactを発行し、全件upsert・削除・最終ID検証と公開markerの再確認が終わった後だけ `success` artifactを発行します。省略判定に使うのは履歴中の一致ではなく、信頼できる `main` workflowが残した最新eventだけです。最新が未完了のattempt、期限切れ、破損、不一致なら安全側で同期します。GitHub APIからstateを取得できない場合はmutationせずrunを失敗させ、次の定期再照合を待ちます。このため A→B→A のrollbackや途中失敗で古いAの成功履歴を誤採用しません。artifactは90日保持し、期限切れ後は一度修復同期して状態を更新します。この判定はProduction tokenをこのworkflowだけが使う単一writerを前提とします。artifactを選択削除した場合や外部からindexを直接変更した場合は、手動Production dispatchで強制修復します。
 
 実 corpus を作る job と token を使う同期 job は runner を分けます。同期 job は同じ protected `preview` / `main` commit の依存なしスクリプトを再 checkout し、artifact の site/content/corpus 3 値を検証してから、最後の step だけへ token を渡します。
+
+Production mutation jobは `world-foundation-vectorize-production` concurrencyで直列化し、開始後はcancelしません。concurrency待ちの後にも最新successを再照合するため、同じdeploymentを見たpush、Pages check、定期runのうち後続runは再embeddingを省略します。GitHub concurrencyが複数のpending runをまとめた場合も、次の定期runが現在の公開markerへ収束させます。手動 Production dispatchだけはこの省略を行わず、同じIDのvalues / metadata破損も含めて全件を修復します。
+
+定期再照合はpublic repositoryの無活動60日でGitHubに自動停止される可能性があるため、push・Pages check・手動dispatchを持つcore workflowとは別ファイルにしています。停止しても主経路は巻き込まれません。状態確認と復旧は次で行います。
+
+```powershell
+gh api repos/acecore-systems/world-foundation-site/actions/workflows/reconcile-vectorize.yml --jq .state
+gh workflow enable reconcile-vectorize.yml --repo acecore-systems/world-foundation-site
+```
+
+Vectorizeは同じindexへin-placeでupsertするため、厳密な原子的切替ではありません。markerがmutation中に変わればrunは失敗し、次の自動runが修復しますが、その間に新旧vectorが短時間混在する可能性は残ります。完全なzero-mixed-stateが必要になった場合は、新indexを構築してbindingを切り替えるblue/green方式へ移行します。
 
 GitHub Environments と environment secret は次のように分離します。
 
@@ -161,13 +175,9 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 4. Workers AI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
 5. index を作り直す場合は新 index の同期と canary を終えてから binding を切り替える。旧 index を先に削除しない。
 
-## Production 有効化 gate
+## Production 有効化 gate（完了済み）
 
-1. Preview D1 migration、Preview index 同期、固定 fixture 評価を完了する。
-2. Production D1 migration を確認し、`SEARCH_ENABLED="false"` のまま同じ corpus を Production index へ同期する。
-3. GitHub-connected Pages deployment で `uses_functions=true`、Wrangler config hash、AI / Vectorize / D1 binding を確認する。
-4. `SEARCH_ENABLED="true"` へ変える小さな Pull Request を別に作成する。
-5. 公開 `/api/search` の日英 canary と Pagefind fallback を確認する。失敗時は直ちに `"false"` へ戻す。
+初回の Preview D1 migration、Preview index 同期、固定fixture評価、Production D1 / index事前同期、GitHub-connected Pages binding確認、`SEARCH_ENABLED="true"` への切替、日英canary、Pagefind fallback確認は完了しています。今後のProduction releaseでも、同期workflowとは別の運用gateとして必要な項目を人手で再確認します。canaryに失敗した場合は `SEARCH_ENABLED` を `"false"` へ戻します。
 
 ## 公式資料
 
@@ -177,4 +187,8 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 - [BGE-M3](https://developers.cloudflare.com/workers-ai/models/bge-m3/)
 - [Pages Functions bindings](https://developers.cloudflare.com/pages/functions/bindings/)
 - [Pages Wrangler configuration](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)
+- [Pages preview aliases and immutable deployment URLs](https://developers.cloudflare.com/pages/configuration/preview-deployments/#preview-aliases)
 - [D1](https://developers.cloudflare.com/d1/)
+- [GitHub `check_run` event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#check_run)
+- [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+- [GitHub Actions artifacts API](https://docs.github.com/en/rest/actions/artifacts)
