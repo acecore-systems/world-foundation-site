@@ -79,9 +79,9 @@ Preview Environment の Deployment branches and tags は `preview`、Production 
 
 Cloudflare の Vectorize 権限は account scope で、個別 index には制限できません。GitHub Environment と同期 CLI の target 固定は誤操作を防ぎますが、Preview token 自体の権限範囲には同じ account の Production index も含まれます。完全な hard isolation が必要な場合は、別 account または狭い同期 gateway が必要です。
 
-`main` は最低 1 件の承認、dismiss stale review、last-push approval、この workflow の PR 検証を必須にします。単独運用中の `preview` は明示承認により required approval を 0、last-push approval を無効にしていますが、Pull Request、strict な必須検証、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止は維持します。
+単独運用中の `main` と `preview` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。`main` は strict な `Cloudflare Pages` と `Verify semantic search changes without secrets`、`preview` は strict な `Verify semantic search changes without secrets` を必須にします。両 branch とも Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持し、`main` 向けPRは同じrepositoryの `preview` branchだけを許可します。
 
-この `preview` の例外は独立レビューを失う運用リスクです。また Cloudflare の Vectorize token は個別 index に絞れないため、Preview token の account scope には Production index も含まれます。別 reviewer を用意できた時点で `preview` も 1 承認と last-push approval へ戻すか、別 account / 狭い同期 gateway で hard isolation します。可能なら workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にもします。
+この単独運用の例外は独立レビューを失う運用リスクです。GitHub はPR作成者自身の正式な `APPROVE` を許可しないため、Codexのレビュー結果は `COMMENT` として監査記録に残しますが、独立承認にはなりません。特に `main` はProductionの公開元なので、別 reviewer を用意できた時点で両 branch を 1 承認と last-push approval へ戻します。また Cloudflare の Vectorize token は個別 index に絞れないため、Preview token の account scope には Production index も含まれます。別 account / 狭い同期 gateway による hard isolation も検討し、可能なら workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にします。
 
 Pages Preview の binding は全 preview branch で共有され、Vectorize / D1 binding は読み取り専用ではありません。Cloudflare Pages の Preview branch control は保護済み `preview` だけを許可し、任意の PR branch を Functions 付きで自動 deploy しません。共有 Preview index へは現在の protected `preview` の corpus だけを入れ、過去 workflow の再実行や PR ごとの corpus で上書きしません。
 
