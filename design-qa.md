@@ -10,6 +10,13 @@
   - `04-mobile-390.png`
   - `05-english-821.png`
   - `06-desktop-1440.png`
+- Targeted background correction evidence:
+  - Rejected ACT I capture: `10-before-act1.png`
+  - Revised ACT I capture: `11-after-act1.png`
+  - Revised ACT III capture: `12-after-act3.png`
+  - Same-viewport ACT I / ACT III before-and-after comparison: `13-before-after-act1-act3.jpg`
+  - Mobile ACT I crop: `14-mobile-act1.png`
+  - Mobile ACT III crop: `15-mobile-act3.png`
 
 ## Viewport and geometry
 
@@ -22,7 +29,10 @@
 
 - No actionable P0, P1, or P2 fidelity issue remains.
 - Hero, ACT I, and epilogue use slot-specific cinematic assets with copy-safe shadow fields and reference-matched focal placement.
+- ACT I replaces the artificial glyph-covered notebook, pen, and repeated piano keys with natural layered topographic sheets under a smoke-glass weight; the result reads as quiet institutional pressure without introducing literal prison imagery.
 - ACT II uses the approved membrane/intercellular-fluid abstraction for “ひとつの世界。無数の自由。” rather than a literal map or sunrise.
+- ACT II remains on the user-approved `cellular-world-v3.webp`; it was not changed in the final correction.
+- ACT III replaces the tar-like black fissure with ten independently legible washi layers sharing one open direction, while keeping the principles text and section geometry unchanged.
 - ACT IV now includes the reference’s public-design worktable density: paper, window light, glass, and a visible vintage camera.
 - ACT V uses multiple small silver-black liquid pools instead of one dominant blob; the quote and `— Accepted` remain fully inside the section.
 - Evidence values, 10 principles, 11 modules, six roadmap phases, and the Issue → Proposal → Review → Decision → Fork process retain their information density.
@@ -63,5 +73,11 @@
 4. Hero, ACT I, ACT IV, ACT V, and epilogue received slot-specific generated backgrounds.
 5. Final same-size comparison, responsive QA, locale QA, interaction checks, console inspection, and the 97-page production build passed.
 6. A stricter follow-up review caught translated typography falling to `6–8px` and an empty desktop rail; the exact layout was limited to Japanese from `861px`, English keeps a full-width content-first layout, and scrollbar hiding was limited to the Japanese exact-layout regime.
+7. User feedback clarified that ACT II was already acceptable and ACT I / ACT III were the incorrect backgrounds. ACT II was restored unchanged; ACT I’s artificial notebook scene and ACT III’s fissure were replaced, then recaptured and compared at the same `861px` viewport.
+
+## Final image-generation prompt set
+
+- ACT I: photorealistic cinematic prop still of a dark drafting table, a few misregistered unlabeled topographic tracing sheets, and one heavy smoke-glass plate that dims and optically displaces the lines; left 42% quiet copy space; no piano, pen, invented glyphs, readable text, people, or literal prison symbols.
+- ACT III: cinematic dark desk with exactly ten intact blank washi sheets opened in one fan, each independently legible and lightly connected by hair-thin guide threads; warm raking light; no fissures, tears, tar, writing, hands, pens, or binding hardware.
 
 final result: passed
