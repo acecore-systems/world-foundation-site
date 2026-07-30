@@ -29,12 +29,7 @@
 
 html {
 	scroll-behavior: smooth;
-	scrollbar-width: none;
 	background: var(--ink);
-}
-
-body::-webkit-scrollbar {
-	display: none;
 }
 
 body {
@@ -1142,11 +1137,50 @@ a:focus-visible {
 	}
 }
 
+@media (min-width: 821px) and (max-width: 1080px) {
+	:lang(en) .module-list {
+		grid-template-columns: 1fr;
+	}
+
+	:lang(en) .module-list li:last-child {
+		grid-column: auto;
+		width: auto;
+	}
+
+	:lang(en) .module-list a {
+		grid-template-columns: minmax(9em, auto) minmax(0, 1fr);
+		gap: 12px;
+	}
+
+	:lang(en) .module-list span {
+		overflow-wrap: normal;
+	}
+}
+
+@media (min-width: 821px) {
+	html:lang(en) .story-row {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	html:lang(en) .story-rail {
+		display: none;
+	}
+}
+
 .story-timeline {
 	display: none;
 }
 
-@media (min-width: 821px) {
+@media (min-width: 861px) {
+	html:lang(ja) {
+		scrollbar-width: none;
+	}
+
+	html:lang(ja) body::-webkit-scrollbar {
+		display: none;
+	}
+
+	html:lang(ja) {
 	.story {
 		position: relative;
 		container-type: inline-size;
@@ -1211,50 +1245,50 @@ a:focus-visible {
 	}
 
 	.story-row--hero .story-panel {
-		height: 36.09cqi;
+		height: 36.0465cqi;
 		min-height: 0;
 	}
 
 	#act1 .story-panel {
-		height: 22.12cqi;
+		height: 22.093cqi;
 	}
 
 	#world .story-panel {
-		height: 22.47cqi;
+		height: 22.4419cqi;
 	}
 
 	#evidence .story-panel {
-		height: 10.36cqi;
+		height: 10.3488cqi;
 		min-height: 0;
 	}
 
 	#principles .story-panel {
-		height: 22.7cqi;
+		height: 22.6744cqi;
 		min-height: 0;
 	}
 
 	#modules .story-panel {
-		height: 22.47cqi;
+		height: 22.4419cqi;
 		min-height: 0;
 	}
 
 	#safety .story-panel {
-		height: 21.77cqi;
+		height: 21.7442cqi;
 		min-height: 0;
 	}
 
 	#life .story-panel {
-		height: 16.07cqi;
+		height: 16.0465cqi;
 		min-height: 0;
 	}
 
 	#roadmap .story-panel {
-		height: 17.35cqi;
+		height: 17.3256cqi;
 		min-height: 0;
 	}
 
 	.story-row--epilogue .story-panel {
-		height: 21.3cqi;
+		height: 21.2791cqi;
 		min-height: 0;
 	}
 
@@ -1781,6 +1815,7 @@ a:focus-visible {
 
 	.epilogue__actions .outline-button {
 		width: 15.5cqi;
+	}
 	}
 }
 

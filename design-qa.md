@@ -34,7 +34,8 @@
 - Checked widths: `390`, `820`, `821`, `861`, and `1440` CSS pixels.
 - No horizontal overflow was found at any checked width.
 - Mobile uses the intended single-column cinematic sequence with full-width controls and readable information blocks.
-- English was checked at `390` and the narrowest desktop layout (`821`). Principle and module labels no longer wrap into neighboring rows or clip.
+- The source-matched Japanese composition starts at `861`; narrower widths keep the roomier responsive layout instead of shrinking labels and descriptions below a readable size.
+- English was checked at `390`, `821`, `861`, and `1440`. It retains the content-first single-column story layout at every width, without the Japanese chapter rail; up to `1080`, the eleven modules use one readable column with no clipped or mid-word-broken descriptions.
 - JP/EN language switching returns the correct route, `lang`, and document title.
 
 ## Interaction and browser QA
@@ -43,6 +44,7 @@
 - The external participation CTA opens the repository issues page in a new tab with `rel="noreferrer"`.
 - The final browser pass found zero broken scene images and no console warnings or errors.
 - Semantic regions, heading order, skip link, visible links, reduced-motion behavior, and decorative-image handling remain intact.
+- Native scrollbars remain visible on English and below `861`. On the source-matched Japanese layout at `861` and wider, they are visually hidden to preserve the exact content canvas; wheel, touch, and keyboard scrolling remain available and the chapter rail supplies position context. This is an intentional P3 fidelity trade-off, not an interaction blocker.
 
 ## Production verification
 
@@ -60,5 +62,6 @@
 3. Evidence, principles, modules, safety, life, roadmap, and epilogue typography were resized against same-viewport captures.
 4. Hero, ACT I, ACT IV, ACT V, and epilogue received slot-specific generated backgrounds.
 5. Final same-size comparison, responsive QA, locale QA, interaction checks, console inspection, and the 97-page production build passed.
+6. A stricter follow-up review caught translated typography falling to `6–8px` and an empty desktop rail; the exact layout was limited to Japanese from `861px`, English keeps a full-width content-first layout, and scrollbar hiding was limited to the Japanese exact-layout regime.
 
 final result: passed
