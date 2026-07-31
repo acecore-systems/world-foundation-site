@@ -39,7 +39,7 @@ Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の
 
 Pages Function 用の `OPENAI_API_KEY` は Preview / Production の secret として Cloudflare Pages に設定します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` は Preview / Production の各 GitHub Environment secret へ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。
 
-旧 1024 次元構成での Production 初回 gate は完了しており、現在の `SEARCH_ENABLED` は `"true"` です。新 1536 次元構成は後述の移行 gate を再実施します。障害時に意味検索だけを止められるよう、`"false"` へ戻す fail-safe は維持します。
+OpenAI / 1536次元のPreview indexはGitHub Actions run [30598508701](https://github.com/acecore-systems/world-foundation-site/actions/runs/30598508701)で全件同期し、1536 dimensions / cosine、135 vectors、`ja` namespaceのquery結果を確認済みです。Production indexは作成済みですが未同期のため、Productionの`SEARCH_ENABLED`は`"false"`に保ちます。Production同期と日英canary完了後、別PRで`"true"`へ変更します。
 
 ## 原典と公開 build の一致
 
@@ -180,7 +180,7 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 
 ## OpenAI / 1536 次元移行 gate
 
-旧 BGE-M3 / 1024 次元構成の初回 gate は完了していますが、新しい OpenAI / 1536 次元 index は別リソースです。Preview index 作成、全件同期、固定 fixture 評価、Production index の事前同期、GitHub-connected Pages binding、OpenAI key、日英 canary、Pagefind fallback を再確認してから切り替えます。旧 1024 次元 index は rollback 用に残し、canary に失敗した場合は `SEARCH_ENABLED` を `"false"` へ戻すか旧 binding へ戻します。
+旧 BGE-M3 / 1024 次元構成の初回 gate は完了していますが、新しい OpenAI / 1536 次元 index は別リソースです。Previewは全件同期と`ja` query確認まで完了しました。Productionはindex同期、GitHub-connected Pages binding、OpenAI key、日英canary、Pagefind fallbackを再確認してから有効化します。旧1024次元indexはrollback用に残し、canaryに失敗した場合は`SEARCH_ENABLED`を`"false"`に保つか旧bindingへ戻します。
 
 ## 公式資料
 
