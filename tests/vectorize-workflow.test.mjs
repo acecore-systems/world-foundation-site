@@ -238,25 +238,53 @@ test('OpenAI keyとCloudflare Vectorize tokenを別secretとして同期stepだ�
 	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
-test('main向けPRは同じrepositoryのpreview branchと同一SHAのPreview証跡を要求する', async () => {
+test('main向けPRはprotected previewまたは同一treeの単一resolution commitだけを許可する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const pullRequestJob = workflow.slice(
 		workflow.indexOf('  verify-pull-request:'),
 		workflow.indexOf('\n  build-preview-corpus:'),
 	);
 
-	assert.match(
-		pullRequestJob,
-		/Require protected preview as the source of main promotions/u,
-	);
-	assert.match(pullRequestJob, /\[\[ "\$HEAD_REF" != "preview" \]\]/u);
+	assert.match(pullRequestJob, /Verify the main promotion source/u);
 	assert.match(
 		pullRequestJob,
 		/\[\[ "\$HEAD_REPOSITORY" != "\$EXPECTED_HEAD_REPOSITORY" \]\]/u,
 	);
 	assert.match(
 		pullRequestJob,
-		/actions\/runs\?branch=preview&head_sha=\$HEAD_SHA&status=completed/u,
+		/\[\[ "\$BASE_SHA" != "\$current_main_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$HEAD_SHA" != "\$current_preview_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\^codex\/preview-promotion-resolution-\(\[0-9a-f\]\{40\}\)\$/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$head_parent_count" != "1" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$head_parent_sha" != "\$current_main_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$head_tree_sha" != "\$preview_tree_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/files\[0\]\.filename !== '\.github\/workflows\/sync-vectorize\.yml'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/steps\.promotion\.outputs\.mode != 'bootstrap'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/actions\/runs\?branch=preview&head_sha=\$PREVIEW_SHA&status=completed/u,
 	);
 	assert.match(pullRequestJob, /run\.conclusion === 'success'/u);
 	assert.match(pullRequestJob, /run-id: \$\{\{ steps\.preview-evidence\.outputs\.run_id \}\}/u);
