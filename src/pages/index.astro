@@ -1,0 +1,11 @@
+---
+import CinematicLanding from '../components/landing/CinematicLanding.astro';
+import { landingCopy } from '../data/landing';
+import CinematicLayout from '../layouts/CinematicLayout.astro';
+
+const copy = landingCopy.ja;
+---
+
+<CinematicLayout title={copy.title} description={copy.description} lang="ja">
+	<CinematicLanding locale="ja" />
+</CinematicLayout>

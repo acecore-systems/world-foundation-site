@@ -10,6 +10,7 @@ const reconcileWorkflowUrl = new URL(
 	'../.github/workflows/reconcile-vectorize.yml',
 	import.meta.url,
 );
+const wranglerConfigUrl = new URL('../wrangler.jsonc', import.meta.url);
 
 test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapperへ分離する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
@@ -44,8 +45,9 @@ test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapper
 	assert.match(reconcileWorkflow, /production_reconcile: true/u);
 	assert.match(
 		workflow,
-		/github\.event_name == 'workflow_dispatch' &&\s+github\.ref == 'refs\/heads\/preview' &&\s+inputs\.target == 'preview'/u,
+		/github\.event_name == 'push' &&\s+github\.ref == 'refs\/heads\/preview'/u,
 	);
+	assert.doesNotMatch(triggers, /target:/u);
 });
 
 test('Production候補はexact Pages deploymentを待ち、成功checkを厳格検証する', async () => {
@@ -80,7 +82,7 @@ test('Production候補はexact Pages deploymentを待ち、成功checkを厳格�
 	);
 	assert.match(
 		productionJobs,
-		/github\.event_name == 'workflow_dispatch' &&\s+github\.ref == 'refs\/heads\/main' &&\s+inputs\.target == 'production'/u,
+		/github\.event_name == 'workflow_dispatch' &&\s+github\.ref == 'refs\/heads\/main'/u,
 	);
 	assert.match(
 		productionJobs,
@@ -195,62 +197,61 @@ test('Production mutationを直列化し、attempt/success stateで重複と失�
 	assert.ok(finalAssert < success);
 });
 
-test('Preview同期はbuild時とmutationの前後に保護branch identityを再確認する', async () => {
+test('PreviewはVectorizeを使わずbuild/deploymentと保護branch identityだけを検証する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const previewJobs = workflow.slice(
 		workflow.indexOf('  build-preview-corpus:'),
-		workflow.indexOf('\n  build-production-corpus:'),
+		workflow.indexOf('\n  resolve-production-deployment:'),
 	);
 
 	assert.match(
 		previewJobs,
-		/Preview sync only accepts the current protected source branch commit\./u,
+		/Preview corpus verification only accepts the current protected source branch commit\./u,
 	);
 	assert.match(
 		previewJobs,
-		/Preview sync only accepts the current content main commit\./u,
+		/Preview corpus verification only accepts the current content main commit\./u,
 	);
 	assert.match(
 		previewJobs,
-		/Protected preview source changed during the sync run\./u,
+		/Protected preview source changed during verification\./u,
 	);
 	assert.match(
 		previewJobs,
-		/Content main changed during the sync run\./u,
+		/Content main changed during Preview verification\./u,
 	);
 	assert.match(
 		previewJobs,
-		/group: world-foundation-vectorize-preview\s+cancel-in-progress: true/u,
+		/https:\/\/preview\.world-foundation-site\.pages\.dev\/\.well-known\/world-foundation-build\.json/u,
 	);
+	assert.match(previewJobs, /--assert-current\s+\\\s+payload\/corpus\.json/u);
 	assert.equal(
 		previewJobs.match(/^\s{10}verify_current_identities$/gmu)?.length,
 		2,
 	);
-	assert.match(
-		previewJobs,
-		/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/u,
-	);
-	assert.match(
-		previewJobs,
-		/if \[\[ -z "\$\{OPENAI_API_KEY:-\}" \]\]; then/u,
-	);
+	assert.doesNotMatch(previewJobs, /environment:/u);
+	assert.doesNotMatch(previewJobs, /CLOUDFLARE_API_TOKEN/u);
+	assert.doesNotMatch(previewJobs, /OPENAI_API_KEY/u);
+	assert.doesNotMatch(previewJobs, /--target preview/u);
+	assert.doesNotMatch(previewJobs, /Sync the preview index/u);
 });
 
-test('OpenAI keyとCloudflare Vectorize tokenを別secretとして同期stepだけへ渡す', async () => {
+test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡す', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 
 	assert.equal(
 		workflow.match(
 			/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/gu,
 		)?.length,
-		2,
+		1,
 	);
 	assert.equal(
 		workflow.match(
-			/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_SEARCH_(?:PREVIEW|PRODUCTION)_API_TOKEN \}\}/gu,
+			/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN \}\}/gu,
 		)?.length,
-		2,
+		1,
 	);
+	assert.doesNotMatch(workflow, /CLOUDFLARE_SEARCH_PREVIEW_API_TOKEN/u);
 	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
@@ -310,7 +311,9 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 		pullRequestJob,
 		/actions\/runs\?branch=preview&head_sha=\$PREVIEW_SHA&status=completed/u,
 	);
+	assert.match(pullRequestJob, /run\.event === 'push'/u);
 	assert.match(pullRequestJob, /run\.conclusion === 'success'/u);
+	assert.match(pullRequestJob, /world-foundation-preview-corpus-\*/u);
 	assert.match(pullRequestJob, /run-id: \$\{\{ steps\.preview-evidence\.outputs\.run_id \}\}/u);
 	assert.match(
 		pullRequestJob,
@@ -324,4 +327,21 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 		pullRequestJob,
 		/--assert-current\s+\\\s+preview-evidence\/corpus\.json/u,
 	);
+});
+
+test('PreviewはVectorize bindingなし、Productionも収束までkill switchを維持する', async () => {
+	const config = await readFile(wranglerConfigUrl, 'utf8');
+
+	assert.equal(
+		config.match(
+			/"index_name": "world-foundation-search-openai-1536-production"/gu,
+		)?.length,
+		1,
+	);
+	assert.doesNotMatch(
+		config,
+		/world-foundation-search-openai-1536-preview/u,
+	);
+	assert.equal(config.match(/"SEARCH_ENABLED": "false"/gu)?.length, 3);
+	assert.doesNotMatch(config, /"SEARCH_ENABLED": "true"/u);
 });

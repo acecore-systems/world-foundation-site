@@ -91,6 +91,11 @@ test('公開HTMLとmanifestから決定的な日英corpusを作り、除外要�
 	assert.equal(first.sourceCount, 2);
 	assert.equal(first.vectorCount, 2);
 	assert.deepEqual(first.localeCounts, { ja: 1, en: 1 });
+	assert.deepEqual(first.embedding, {
+		model: 'text-embedding-3-large',
+		dimensions: 1536,
+		metric: 'cosine',
+	});
 	assert.equal(first.version, second.version);
 	assert.deepEqual(first.chunks, second.chunks);
 
@@ -174,7 +179,7 @@ test('vector IDをschema・embedding・chunking契約の全項目に結び付け
 		schemaVersion: SEARCH_VECTOR_ID_CONTRACT.schemaVersion + 1,
 		embeddingModel: `${SEARCH_VECTOR_ID_CONTRACT.embeddingModel}-revision`,
 		embeddingDimensions:
-			SEARCH_VECTOR_ID_CONTRACT.embeddingDimensions === 1024 ? 768 : 1024,
+			SEARCH_VECTOR_ID_CONTRACT.embeddingDimensions === 1536 ? 768 : 1536,
 		distanceMetric:
 			SEARCH_VECTOR_ID_CONTRACT.distanceMetric === 'cosine'
 				? 'dot-product'

@@ -14,7 +14,7 @@
     "test:search": "node --experimental-strip-types --test tests/cloudflare-pages-check.test.mjs tests/deployment-marker.test.mjs tests/production-sync-state.test.mjs tests/search-api.test.mjs tests/search-corpus.test.mjs tests/search-evaluation.test.mjs tests/vectorize-sync.test.mjs tests/vectorize-workflow.test.mjs",
     "evaluate:search": "node scripts/evaluate-search.mjs",
     "sync:vectorize": "node scripts/sync-vectorize.mjs",
-    "sync:vectorize:dry-run": "node scripts/sync-vectorize.mjs --dry-run --target preview",
+    "sync:vectorize:dry-run": "node scripts/sync-vectorize.mjs --dry-run --target production",
     "types:cloudflare": "wrangler types functions/cloudflare-env.d.ts --env-interface CloudflareEnv --include-runtime false",
     "types:cloudflare:check": "wrangler types functions/cloudflare-env.d.ts --env-interface CloudflareEnv --include-runtime false --check",
     "check:pages-config": "wrangler pages functions build --outdir .wrangler/pages-functions",

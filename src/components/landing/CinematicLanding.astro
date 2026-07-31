@@ -1,0 +1,309 @@
+---
+import { landingCopy, modules, principles, type LandingLocale } from '../../data/landing';
+import ActMarker from './ActMarker.astro';
+import SceneMedia from './SceneMedia.astro';
+
+interface Props {
+	locale: LandingLocale;
+}
+
+const { locale } = Astro.props;
+const copy = landingCopy[locale];
+const localeModules = modules[locale];
+const localePrinciples = principles[locale];
+const isJa = locale === 'ja';
+const timelineMarkers = [
+	{ lines: copy.prologue, at: '6.4%' },
+	{ lines: copy.problem.marker, at: '12.4%' },
+	{ lines: copy.world.marker, at: '22.8%' },
+	{ lines: copy.evidence.marker, at: '31.5%' },
+	{ lines: copy.principles.marker, at: '40.3%' },
+	{ lines: copy.modules.marker, at: '57.6%' },
+	{ lines: copy.safety.marker, at: '68.3%' },
+	{ lines: copy.roadmap.marker, at: '77.6%' },
+	{ lines: copy.epilogue.marker, at: '92.1%' },
+] as const;
+---
+
+<div class="story" data-story>
+	<div class="story-timeline" aria-hidden="true">
+		{
+			timelineMarkers.map(({ lines, at }) => (
+				<div class="story-timeline__marker" style={`--marker-at: ${at}`}>
+					<ActMarker lines={lines} />
+				</div>
+			))
+		}
+	</div>
+	<main id="main-content">
+		<section class="story-row story-row--hero" id="top" aria-labelledby="hero-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel scene scene--hero">
+				<SceneMedia src="/lp-cinematic/hero-piano-v2.webp" position="50% 50%" eager />
+				<div class="scene-shade scene-shade--hero"></div>
+
+				<header class="site-header">
+					<a class="site-brand" href={locale === 'ja' ? '/' : '/en/'}>{copy.brand}</a>
+					<nav class="language-switch" aria-label={isJa ? '言語を選択' : 'Choose language'}>
+						<a href="/" lang="ja" aria-current={isJa ? 'page' : undefined}>JP</a>
+						<span aria-hidden="true">/</span>
+						<a href="/en/" lang="en" aria-current={!isJa ? 'page' : undefined}>EN</a>
+					</nav>
+				</header>
+
+				<div class="hero-copy" data-reveal>
+					<h1 id="hero-title">
+						{copy.hero.title.map((line) => <span>{line}</span>)}
+					</h1>
+					<a class="outline-button" href="#act1">
+						{copy.hero.cta}<span aria-hidden="true">→</span>
+					</a>
+				</div>
+
+				<a class="scroll-cue" href="#act1">
+					<span>{copy.hero.scroll}</span>
+					<span aria-hidden="true">⌄</span>
+				</a>
+			</div>
+		</section>
+
+		<section class="story-row" id="act1" aria-labelledby="act1-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel scene scene--problem">
+				<SceneMedia src="/lp-cinematic/act1-problem-v3.webp" position="50% 50%" />
+				<div class="scene-shade scene-shade--left"></div>
+				<div class="section-copy section-copy--compact" data-reveal>
+					<p class="section-label">{copy.problem.label}</p>
+					<h2 id="act1-title" class="stacked-list">
+						{copy.problem.items.map((item) => <span>{item}</span>)}
+					</h2>
+					<p class="section-note">{copy.problem.note}</p>
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row" id="world" aria-labelledby="world-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel scene scene--world">
+				<SceneMedia src="/lp-cinematic/cellular-world-v3.webp" position="60% 50%" />
+				<div class="scene-shade scene-shade--cellular"></div>
+				<div class="section-copy section-copy--world" data-reveal>
+					<p class="section-label">{copy.world.label}</p>
+					<h2 id="world-title">
+						{copy.world.title.map((line) => <span>{line}</span>)}
+					</h2>
+					<div class="world-lines">
+						{copy.world.lines.map((line) => <p>{line}</p>)}
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row" id="evidence" aria-labelledby="evidence-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel evidence">
+				<div class="evidence__intro">
+					<h2 class="section-label" id="evidence-title">{copy.evidence.label}</h2>
+				</div>
+				<div class="evidence__stats">
+					{
+						copy.evidence.stats.map(([value, label, href]) => (
+							<a class="evidence-stat" href={href}>
+								<strong>{value}</strong>
+								<span>{label}</span>
+							</a>
+						))
+					}
+				</div>
+				<p class="evidence__language">{copy.evidence.language}</p>
+				<a class="evidence__status" href={locale === 'ja' ? '/docs/03-roadmap/' : '/en/docs/03-roadmap/'}>
+					{copy.evidence.status.map((line) => <span>{line}</span>)}
+				</a>
+			</div>
+		</section>
+
+		<section class="story-row" id="principles" aria-labelledby="principles-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel editorial-split">
+				<div class="editorial-split__copy" data-reveal>
+					<h2 id="principles-title" class="section-label">{copy.principles.label}</h2>
+					<ol class="principle-list">
+						{
+							localePrinciples.map((principle, index) => (
+								<li>
+									<span>{String(index + 1).padStart(2, '0')}</span>
+									<strong>{principle}</strong>
+								</li>
+							))
+						}
+					</ol>
+					<p class="section-note">{copy.principles.note}</p>
+				</div>
+				<div class="editorial-split__media">
+					<SceneMedia src="/lp-cinematic/act3-principles-v3.webp" position="58% 50%" />
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row" id="modules" aria-labelledby="modules-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel editorial-split editorial-split--modules">
+				<div class="editorial-split__copy editorial-split__copy--wide" data-reveal>
+					<h2 id="modules-title" class="section-label">{copy.modules.label}</h2>
+					<ul class="module-list">
+						{
+							localeModules.map(([name, description, href]) => (
+								<li>
+									<a href={href}>
+										<strong>{name}</strong>
+										<span>{description}</span>
+									</a>
+								</li>
+							))
+						}
+					</ul>
+					<p class="section-note">{copy.modules.note}</p>
+				</div>
+				<div class="editorial-split__media">
+					<SceneMedia src="/lp-cinematic/act4-worktable-v3.webp" position="78% 50%" />
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row" id="safety" aria-labelledby="safety-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel safety scene">
+				<SceneMedia src="/lp-cinematic/act5-interstitial-v3.webp" position="78% 50%" />
+				<div class="scene-shade scene-shade--safety"></div>
+				<div class="safety__content" data-reveal>
+					<h2 class="section-label" id="safety-title">{copy.safety.label}</h2>
+					<div class="safety__grid">
+						<div>
+							<h3>{copy.safety.risksLabel}</h3>
+							<ul class="lined-list lined-list--risk">
+								{copy.safety.risks.map((risk) => <li>{risk}</li>)}
+							</ul>
+						</div>
+						<div>
+							<h3>{copy.safety.guardsLabel}</h3>
+							<ul class="lined-list">
+								{copy.safety.guards.map((guard) => <li>{guard}</li>)}
+							</ul>
+						</div>
+						<blockquote>
+							{copy.safety.quote.map((line) => <span>{line}</span>)}
+							<cite>{copy.safety.accepted}</cite>
+						</blockquote>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row" id="life" aria-labelledby="life-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel editorial-split editorial-split--life">
+				<div class="editorial-split__copy" data-reveal>
+					<p class="section-label">{copy.life.label}</p>
+					<h2 id="life-title">
+						{copy.life.title.map((line) => <span>{line}</span>)}
+					</h2>
+					<p class="life-access">{copy.life.access}</p>
+					<ul class="life-experiments">
+						{copy.life.experiments.map((experiment) => <li>{experiment}</li>)}
+					</ul>
+				</div>
+				<div class="editorial-split__media">
+					<SceneMedia src="/lp-cinematic/act6-window-v2.webp" position="58% 50%" />
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row" id="roadmap" aria-labelledby="roadmap-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel roadmap scene">
+				<SceneMedia src="/lp-cinematic/act7-archipelago-v2.webp" position="58% 50%" />
+				<div class="scene-shade scene-shade--roadmap"></div>
+				<div class="roadmap__content" data-reveal>
+					<p class="section-label">{copy.roadmap.label}</p>
+					<h2 id="roadmap-title">{copy.roadmap.title}</h2>
+					<ol class="phase-list">
+						{
+							copy.roadmap.phases.map(([number, label], index) => (
+								<li>
+									<strong>{number}</strong>
+									<span>{label}</span>
+									{index < copy.roadmap.phases.length - 1 && <i aria-hidden="true">→</i>}
+								</li>
+							))
+						}
+					</ol>
+					<div class="process">
+						<p>{copy.roadmap.processLabel}</p>
+						<ol>
+							{
+								copy.roadmap.process.map((step, index) => (
+									<li>
+										<span>{step}</span>
+										{index < copy.roadmap.process.length - 1 && <i aria-hidden="true">→</i>}
+									</li>
+								))
+							}
+						</ol>
+						{copy.roadmap.forkNote && <small>{copy.roadmap.forkNote}</small>}
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="story-row story-row--epilogue" id="epilogue" aria-labelledby="epilogue-title">
+			<div class="story-rail" aria-hidden="true"></div>
+			<div class="story-panel scene scene--epilogue">
+				<SceneMedia src="/lp-cinematic/epilogue-work-v2.webp" position="50% 50%" />
+				<div class="scene-shade scene-shade--epilogue"></div>
+				<div class="epilogue__content" data-reveal>
+					<h2 id="epilogue-title">
+						{copy.epilogue.title.map((line) => <span>{line}</span>)}
+					</h2>
+					<p>{copy.epilogue.closing}</p>
+					<div class="epilogue__actions">
+						<a class="solid-button" href={copy.epilogue.primaryHref}>
+							{copy.epilogue.primary}<span aria-hidden="true">→</span>
+						</a>
+						<a
+							class="outline-button"
+							href={copy.epilogue.secondaryHref}
+							target="_blank"
+							rel="noreferrer"
+						>
+							{copy.epilogue.secondary}<span aria-hidden="true">→</span>
+							<span class="visually-hidden">{isJa ? '（新しいタブで開きます）' : ' (opens in a new tab)'}</span>
+						</a>
+					</div>
+				</div>
+			</div>
+		</section>
+	</main>
+</div>
+
+<script>
+	const revealTargets = document.querySelectorAll<HTMLElement>('[data-reveal]');
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	if (reduceMotion || !('IntersectionObserver' in window)) {
+		revealTargets.forEach((target) => target.classList.add('is-visible'));
+	} else {
+		document.documentElement.classList.add('reveal-ready');
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					entry.target.classList.add('is-visible');
+					observer.unobserve(entry.target);
+				}
+			},
+			{ threshold: 0.16 },
+		);
+
+		revealTargets.forEach((target) => observer.observe(target));
+	}
+</script>
