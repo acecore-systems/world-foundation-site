@@ -18,13 +18,14 @@ Vectorize を AI 回答生成には使いません。公開済み設計資料の
 
 公開書き込み API はありません。index 更新は protected `main` 上のProduction
 GitHub Actionsからのみ実行します。`preview`はcorpusとPages deploymentの
-同一性だけをsecretなしで検証し、Vectorizeへ接続・同期しません。
+同一性だけをsecretなしで検証します。PreviewにはVectorize index、binding、
+GitHub Environment、同期用token/secretを置かず、Vectorizeへ接続・同期しません。
 
 ## Cloudflare リソース
 
 | 環境       | Vectorize index                                  | D1 rate-limit database               | semantic search |
 | ---------- | ------------------------------------------------ | ------------------------------------ | --------------- |
-| Preview    | bindingなし                                      | `world-foundation-search-preview`    | 無効            |
+| Preview    | なし（index / bindingなし）                       | `world-foundation-search-preview`    | 無効            |
 | Production | `world-foundation-search-openai-1536-production` | `world-foundation-search-production` | 有効            |
 
 embedding contract は次のとおりです。
@@ -35,17 +36,14 @@ embedding contract は次のとおりです。
 - metric: `cosine`
 - chunk: 850 文字目標 / 1200 文字上限 / 120 文字 overlap
 
-Vectorize の上限が 1536 次元のため、`text-embedding-3-large` の既定 3072 次元は保存せず、query と corpus の両方を同じ 1536 次元で生成します。model、dimensions、metric は既存 index 内で混在させません。旧 1024 次元 index は削除せず、新しいProduction候補indexの全件同期と検索評価を終えてから有効化します。
+Vectorize の上限が 1536 次元のため、`text-embedding-3-large` の既定 3072 次元は保存せず、query と corpus の両方を同じ 1536 次元で生成します。model、dimensions、metric は既存 index 内で混在させません。全件同期と検索評価の完了後、旧 BGE-M3 / 1024 次元のProduction indexは削除済みであり、OpenAI / 1536 次元のProduction indexだけを使用します。
 
 Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の Dashboard 設定は `wrangler pages download config world-foundation-site` で取得し、project 名、output directory、compatibility date、空の production environment だけであることを確認済みです。
 
-Pages Function 用の `OPENAI_API_KEY` はProductionのsecretとして使用します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` はProduction GitHub Environment secretへ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。既存Preview secretはこの変更では削除しませんが、Vectorize bindingと検索機能がないため移行gateでは参照しません。
+Pages Function 用の `OPENAI_API_KEY` はProductionのsecretとして使用します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` はProduction GitHub Environment secretへ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。PreviewにはVectorize同期用のGitHub Environment、Cloudflare token、OpenAI secretを置かず、移行gateもこれらを参照しません。
 
-OpenAI / 1536次元の旧Preview indexはGitHub Actions run
-[30598508701](https://github.com/acecore-systems/world-foundation-site/actions/runs/30598508701)
-で全件同期し、1536 dimensions / cosine、135 vectors、`ja` namespaceのquery結果を
-確認済みです。現在はbindingも同期経路も持たず、既存resourceを未参照のまま残します。
-Production indexはGitHub Actions run
+Preview向けのOpenAI / 1536次元indexは削除済みです。PreviewはVectorize index、
+binding、同期経路を持たず、Pagefindだけを検証します。Production indexはGitHub Actions run
 [30602663665](https://github.com/acecore-systems/world-foundation-site/actions/runs/30602663665)
 で公開buildと一致する135 vectorsへ同期し、1536 dimensions / cosine、
 `ja` / `en` namespaceのquery結果を確認済みです。rootとPreviewは
@@ -109,17 +107,17 @@ accountだけをresourceに指定し、同期に必要なVectorize権限だけ�
 OpenAI keyはWorld Foundation検索用projectのservice account keyとし、
 Cloudflare tokenと共有・代用しません。どちらの値もrepo、設定、ログ、PR本文へ
 書きません。secretはbuildへ渡さず、fresh runnerの最終同期stepだけに渡します。
-既存Preview Environment、token、indexはこの変更では削除しませんが、workflowと
-Pages bindingからは参照しません。
+Preview用のGitHub Environment、同期token、OpenAI secret、Vectorize indexは削除済みです。
+Vectorize同期workflowとPagesの`SEARCH_INDEX` bindingはProduction resourceだけを参照します。
 
 CloudflareのVectorize権限はaccount scopeで個別indexには制限できないため、
-Previewへ書込みtokenを渡さない構成そのものを権限境界にします。
+Production Environmentだけへ書込みtokenを渡す構成そのものを権限境界にします。
 
-単独運用中の `main` と `preview` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。`main` は strict な `Cloudflare Pages` と `Verify semantic search changes without secrets`、`preview` は strict な `Verify semantic search changes without secrets` を必須にします。両 branch とも Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持します。`main` 向けPRを同じrepositoryの `preview` branchだけに限定する条件は、branch protectionそのものではなく必須 workflow check で検証します。
+単独運用中の `main` と `preview` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。両 branch は strict な `Verify semantic search changes without secrets` を必須にします。Pages Preview は保護済み `preview` のデプロイ観測に限り、`main` の必須ステータスにはしません。両 branch とも Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持します。`main` 向けPRを同じrepositoryの `preview` branchだけに限定する条件は、branch protectionそのものではなく必須 workflow check で検証します。
 
 この単独運用の例外は独立レビューを失う運用リスクです。GitHub はPR作成者自身の正式な `APPROVE` を許可しないため、Codexは最終push後のhead SHAに対するレビュー結果を `COMMENT` として監査記録に残します。ただし、required approval が 0 の間はこのCOMMENTもdismiss stale reviewもマージを止める強制ゲートにはなりません。特に `main` はProductionの公開元なので、別 reviewer を用意できた時点で両 branch を 1 承認と last-push approval へ戻します。workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にする場合は、独立 reviewer の用意と `require_code_owner_reviews` の有効化をセットで行います。
 
-Pages PreviewはVectorize bindingを持たず、`SEARCH_ENABLED=false`でPagefindだけを
+Pages PreviewはVectorize resourceとbindingを持たず、`SEARCH_ENABLED=false`でPagefindだけを
 検証します。Cloudflare PagesのPreview branch controlは保護済み`preview`だけを
 許可し、`preview → main`のGit連携昇格フローを維持します。
 
@@ -194,16 +192,15 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 2. `/api/search` の status と `X-Search-Request-Id` を確認する。
 3. Pages Functions の runtime log を request ID で追う。query 本文は記録されない。
 4. OpenAI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
-5. index を作り直す場合は新 index の同期と canary を終えてから binding を切り替える。旧 index を先に削除しない。
+5. index を作り直す場合は新 index の同期と canary を終えてから binding を切り替える。切替前に現在のProduction indexを削除しない。
 
 ## OpenAI / 1536 次元移行 gate
 
-旧BGE-M3 / 1024次元構成の初回gateは完了しています。新しいOpenAI / 1536次元
+旧BGE-M3 / 1024次元構成の初回gateは完了し、旧Production indexは削除済みです。OpenAI / 1536次元
 Production indexはGitHub-connected Production deployment後に135 vectorsへ全件同期し、
-ID集合、corpus version、日英namespace canaryを確認済みです。Previewはbindingなし・
-`SEARCH_ENABLED=false`を維持し、Productionだけを有効化します。旧1024次元indexは
-rollback用に残し、canaryに失敗した場合は`SEARCH_ENABLED=false`へ戻すか
-旧bindingへ戻します。
+ID集合、corpus version、日英namespace canaryを確認済みです。PreviewはVectorize resource / bindingなし・
+`SEARCH_ENABLED=false`を維持し、Productionだけを有効化します。canaryに失敗した場合は
+`SEARCH_ENABLED=false`へ戻してPagefindを継続し、必要なら新しい互換indexを構築してbindingを切り替えます。
 
 ## 公式資料
 
