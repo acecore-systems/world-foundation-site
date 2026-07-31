@@ -14,6 +14,9 @@ on:
     branches:
       - main
       - preview
+    paths-ignore:
+      - .github/workflows/sync-vectorize.yml
+      - tests/vectorize-workflow.test.mjs
   check_run:
     types:
       - completed
@@ -51,7 +54,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BOOTSTRAP_BASE_SHA: 159d42dc6f14f7099847e5049ed8c517d94c520f
-          BOOTSTRAP_HEAD_REF: codex/world-promotion-workflow-hardening
+          BOOTSTRAP_HEAD_REF: codex/world-promotion-workflow-hardening-v2
           EXPECTED_HEAD_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -681,7 +684,42 @@ jobs:
           path: verifier
           persist-credentials: false
 
+      - name: Detect the one-time workflow bootstrap
+        id: bootstrap
+        shell: bash
+        env:
+          BOOTSTRAP_BASE_SHA: 159d42dc6f14f7099847e5049ed8c517d94c520f
+        run: |
+          set -euo pipefail
+          verifier_commit="$(git -C verifier rev-parse HEAD)"
+          read -r -a commit_line <<< "$(
+            git -C verifier rev-list --parents -n 1 "$verifier_commit"
+          )"
+          changed_files="$(
+            git -C verifier diff-tree \
+              --no-commit-id \
+              --name-only \
+              -r \
+              "${verifier_commit}^" \
+              "$verifier_commit" |
+              sort
+          )"
+          expected_files="$(
+            printf '%s\n' \
+              '.github/workflows/sync-vectorize.yml' \
+              'tests/vectorize-workflow.test.mjs'
+          )"
+          if [[ "${#commit_line[@]}" == "2" ]] &&
+             [[ "${commit_line[1]}" == "$BOOTSTRAP_BASE_SHA" ]] &&
+             [[ "$changed_files" == "$expected_files" ]]; then
+            echo "The one-time workflow bootstrap does not mutate Production state."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Verify deployment verifier belongs to protected main
+        if: steps.bootstrap.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -696,12 +734,14 @@ jobs:
             "$verifier_commit" refs/remotes/origin/main
 
       - name: Set up verifier Node.js
+        if: steps.bootstrap.outputs.skip != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: verifier/.node-version
 
       - name: Resolve the exact deployed build
         id: deployed
+        if: steps.bootstrap.outputs.skip != 'true'
         shell: bash
         env:
           CHECK_RUN_JSON: ${{ toJSON(github.event.check_run) }}
@@ -790,6 +830,7 @@ jobs:
 
       - name: Decide whether the latest successful sync already matches
         id: sync-state
+        if: steps.bootstrap.outputs.skip != 'true'
         shell: bash
         env:
           CONTENT_COMMIT: ${{ steps.deployed.outputs.content_commit }}

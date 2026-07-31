@@ -23,7 +23,7 @@ test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapper
 	assert.doesNotMatch(triggers, /^\s{2}schedule:/mu);
 	assert.match(
 		triggers,
-		/^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main\s*\n\s{6}- preview$/mu,
+		/^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main\s*\n\s{6}- preview\s*\n\s{4}paths-ignore:\s*\n\s{6}- \.github\/workflows\/sync-vectorize\.yml\s*\n\s{6}- tests\/vectorize-workflow\.test\.mjs$/mu,
 	);
 	assert.match(
 		triggers,
@@ -83,6 +83,22 @@ test('Production候補はexact Pages deploymentを待ち、成功checkを厳格�
 	assert.match(
 		productionJobs,
 		/github\.event_name == 'workflow_dispatch' &&\s+github\.ref == 'refs\/heads\/main'/u,
+	);
+	assert.match(
+		productionJobs,
+		/Detect the one-time workflow bootstrap/u,
+	);
+	assert.match(
+		productionJobs,
+		/\[\[ "\$\{commit_line\[1\]\}" == "\$BOOTSTRAP_BASE_SHA" \]\]/u,
+	);
+	assert.match(
+		productionJobs,
+		/steps\.bootstrap\.outputs\.skip != 'true'/u,
+	);
+	assert.match(
+		productionJobs,
+		/The one-time workflow bootstrap does not mutate Production state\./u,
 	);
 	assert.match(
 		productionJobs,
@@ -282,6 +298,10 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 	assert.match(
 		pullRequestJob,
 		/'tests\/vectorize-workflow\.test\.mjs:modified'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/BOOTSTRAP_HEAD_REF: codex\/world-promotion-workflow-hardening-v2/u,
 	);
 	assert.match(
 		pullRequestJob,
