@@ -1,3 +1,5 @@
+import { getSafeInternalUrl } from "../../src/scripts/search-url-safety.ts";
+
 const EMBEDDING_MODEL = "text-embedding-3-large";
 const EMBEDDING_DIMENSIONS = 1536;
 const OPENAI_EMBEDDINGS_ENDPOINT = "https://api.openai.com/v1/embeddings";
@@ -630,58 +632,11 @@ function normalizeMetadata(
 }
 
 function normalizePublicUrl(value: unknown, requestUrl: string): string | null {
-  if (typeof value !== "string") return null;
-  const rawUrl = value.normalize("NFKC").trim();
-  if (
-    !rawUrl ||
-    [...rawUrl].length > 500 ||
-    !rawUrl.startsWith("/") ||
-    rawUrl.startsWith("//") ||
-    rawUrl.includes("\\") ||
-    rawUrl.includes("?") ||
-    rawUrl.includes("#") ||
-    /\s/u.test(rawUrl) ||
-    /[\u0000-\u001f\u007f]/u.test(rawUrl) ||
-    /[\ud800-\udfff]/u.test(rawUrl)
-  ) {
-    return null;
-  }
+  if (typeof value !== "string" || [...value].length > 500) return null;
 
   try {
     const requestOrigin = new URL(requestUrl).origin;
-    const resolved = new URL(rawUrl, requestOrigin);
-    if (
-      resolved.origin !== requestOrigin ||
-      resolved.search ||
-      resolved.hash ||
-      !resolved.pathname.startsWith("/")
-    ) {
-      return null;
-    }
-
-    let decodedPath = resolved.pathname;
-    for (let index = 0; index < 3; index += 1) {
-      const nextPath = decodeURIComponent(decodedPath);
-      if (nextPath === decodedPath) break;
-      decodedPath = nextPath;
-    }
-
-    if (
-      !decodedPath.startsWith("/") ||
-      decodedPath.startsWith("//") ||
-      decodedPath.includes("\\") ||
-      decodedPath.includes("?") ||
-      decodedPath.includes("#") ||
-      /[\u0000-\u001f\u007f]/u.test(decodedPath)
-    ) {
-      return null;
-    }
-
-    const canonicalPath = new URL(decodedPath, requestOrigin).pathname;
-    const firstPathSegment = canonicalPath.split("/")[1]?.toLowerCase();
-    if (firstPathSegment === "api") return null;
-
-    return canonicalPath;
+    return getSafeInternalUrl(value, requestOrigin);
   } catch {
     return null;
   }
