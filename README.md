@@ -46,7 +46,7 @@ Starlight's Pagefind search remains the primary, browser-local search. Cloudflar
 - Production uses the single Vectorize candidate index and its D1 rate-limit database.
 - Index writes are only performed by the protected Production synchronization workflow.
 - If OpenAI, Vectorize, or D1 is unavailable, Pagefind continues to work.
-- Production semantic search remains disabled while the new 1,536-dimension candidate index is populated. After convergence, a separate reviewed change enables Production only. A protected `main` push synchronizes the exact public build automatically. Delivered Cloudflare Pages Production check events can synchronize content-only Deploy Hook builds sooner, while a separate 15-minute reconciliation workflow covers missed events; manual Production dispatch remains the force-repair path.
+- Production semantic search is enabled after the 1,536-dimension candidate index converged at 135 vectors and passed Japanese and English namespace canaries. Root and Pages Preview remain disabled. A protected `main` push synchronizes the exact public build automatically. Delivered Cloudflare Pages Production check events can synchronize content-only Deploy Hook builds sooner, while a separate 15-minute reconciliation workflow covers missed events; manual Production dispatch remains the force-repair path.
 
 Starlight only mounts Pagefind and the related-content UI in a production build. Use a Pages preview or `wrangler pages dev` for rendered search QA; `astro dev` intentionally shows Starlight's development warning instead.
 
