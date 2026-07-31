@@ -16,7 +16,6 @@ import {
 	createSearchVectorId,
 } from '../scripts/search-contract.mjs';
 
-const PREVIEW_INDEX = 'world-foundation-search-openai-1536-preview';
 const PRODUCTION_INDEX = 'world-foundation-search-openai-1536-production';
 const OPENAI_EMBEDDINGS_ENDPOINT = 'https://api.openai.com/v1/embeddings';
 const temporaryRoots = [];
@@ -108,12 +107,12 @@ test('CLIはtarget・production確認・artifact identityだけを明示入力�
 	assert.equal(options.expectedCorpusVersion, 'a'.repeat(20));
 	assert.match(options.corpusFile, /fixture-corpus\.json$/);
 	assert.throws(
-		() => parseArguments(['--index', PREVIEW_INDEX]),
+		() => parseArguments(['--index', PRODUCTION_INDEX]),
 		/Unknown argument: --index/,
 	);
 });
 
-test('dry-runはcredentialもnetworkも要求せず固定target mappingだけを受け付ける', async () => {
+test('dry-runはcredentialもnetworkも要求せずproduction mappingだけを受け付ける', async () => {
 	const corpus = createCorpus();
 	const corpusFile = await writeCorpus(corpus);
 	let networkCalls = 0;
@@ -121,7 +120,7 @@ test('dry-runはcredentialもnetworkも要求せず固定target mappingだけを
 	const result = await syncVectorize({
 		corpusFile,
 		dryRun: true,
-		target: 'preview',
+		target: 'production',
 		fetchImpl() {
 			networkCalls += 1;
 			throw new Error('network must not be called');
@@ -129,8 +128,8 @@ test('dry-runはcredentialもnetworkも要求せず固定target mappingだけを
 		logger: silentLogger,
 	});
 	assert.equal(result.dryRun, true);
-	assert.equal(result.target, 'preview');
-	assert.equal(result.indexName, PREVIEW_INDEX);
+	assert.equal(result.target, 'production');
+	assert.equal(result.indexName, PRODUCTION_INDEX);
 	assert.equal(result.vectors, 80);
 	assert.equal(networkCalls, 0);
 
@@ -139,7 +138,6 @@ test('dry-runはcredentialもnetworkも要求せず固定target mappingだけを
 			corpusFile,
 			dryRun: true,
 			target: 'production',
-			confirmProduction: corpus.version,
 			logger: silentLogger,
 		}),
 	);
@@ -150,7 +148,7 @@ test('dry-runはcredentialもnetworkも要求せず固定target mappingだけを
 			target: 'untrusted',
 			logger: silentLogger,
 		}),
-		/must be preview or production/,
+		/must be production/,
 	);
 	await assert.rejects(
 		syncVectorize({
@@ -158,7 +156,7 @@ test('dry-runはcredentialもnetworkも要求せず固定target mappingだけを
 			dryRun: true,
 			logger: silentLogger,
 		}),
-		/must be preview or production/,
+		/must be production/,
 	);
 });
 
@@ -184,7 +182,7 @@ test('Acecore account・production確認・corpus artifact identityをnetwork前
 	await assert.rejects(
 		syncVectorize({
 			...liveSyncOptions(corpus, corpusFile, {
-				target: 'production',
+				confirmProduction: undefined,
 			}),
 			fetchImpl,
 			logger: silentLogger,
@@ -293,7 +291,7 @@ test('既存IDも全件再embed・upsertして同一ID破損を修復し、mutat
 		const authorization = new Headers(init.headers).get('Authorization');
 		calls.push({ url, method: init.method || 'GET', authorization });
 
-		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
+		if (url.endsWith(`/vectorize/v2/indexes/${PRODUCTION_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
@@ -385,7 +383,7 @@ test('embeddingを32件、HTTP upsertを200件以下に分割する', async () =
 
 	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
-		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
+		if (url.endsWith(`/vectorize/v2/indexes/${PRODUCTION_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
@@ -456,7 +454,7 @@ test('同じcorpusの再同期でも全件を修復upsertする', async () => {
 
 	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
-		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
+		if (url.endsWith(`/vectorize/v2/indexes/${PRODUCTION_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
@@ -518,7 +516,7 @@ test('20%を超えるdeleteを既定で拒否し明示override時だけ許可す
 
 	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
-		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
+		if (url.endsWith(`/vectorize/v2/indexes/${PRODUCTION_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
@@ -610,7 +608,7 @@ test('mutation後に余計な並行IDが残れば厳密収束をtimeoutで拒否
 
 	const fetchImpl = async (input, init = {}) => {
 		const url = String(input);
-		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
+		if (url.endsWith(`/vectorize/v2/indexes/${PRODUCTION_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
@@ -670,7 +668,7 @@ test('非管理形式の現存IDがあればmutation前にfail closedする', as
 
 	const fetchImpl = async (input) => {
 		const url = String(input);
-		if (url.endsWith(`/vectorize/v2/indexes/${PREVIEW_INDEX}`)) {
+		if (url.endsWith(`/vectorize/v2/indexes/${PRODUCTION_INDEX}`)) {
 			return indexResponse();
 		}
 		if (url.includes('/list?')) {
@@ -760,7 +758,8 @@ function liveSyncOptions(corpus, corpusFile, overrides = {}) {
 		apiToken: 'token',
 		openAiApiKey: 'openai-key',
 		trustedAutomation: true,
-		target: 'preview',
+		target: 'production',
+		confirmProduction: corpus.version,
 		expectedSiteCommit: corpus.siteCommit,
 		expectedContentCommit: corpus.contentCommit,
 		expectedCorpusVersion: corpus.version,
@@ -792,7 +791,7 @@ async function writeCorpus(corpus) {
 
 function indexResponse() {
 	return cloudflareResponse({
-		name: PREVIEW_INDEX,
+		name: PRODUCTION_INDEX,
 		config: { dimensions: 1536, metric: 'cosine' },
 	});
 }

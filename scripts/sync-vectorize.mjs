@@ -43,7 +43,6 @@ const MANAGED_VECTOR_ID_PATTERN = new RegExp(
   `^${escapeRegExp(SEARCH_VECTOR_ID_PREFIX)}[0-9a-f]{${SEARCH_VECTOR_ID_HASH_CHARACTERS}}$`,
 );
 const TARGET_INDEX_NAMES = Object.freeze({
-  preview: "world-foundation-search-openai-1536-preview",
   production: "world-foundation-search-openai-1536-production",
 });
 const SUPPORTED_LOCALES = ["ja", "en"];
@@ -96,6 +95,7 @@ export async function syncVectorize({
     target: normalizedTarget,
     confirmation: confirmProduction,
     corpusVersion: corpus.version,
+    required: !dryRun,
   });
   validateAccountId(accountId, { required: !dryRun });
   validateExpectedCorpusIdentity({
@@ -452,7 +452,7 @@ function normalizeTarget(target) {
     .trim()
     .toLowerCase();
   if (!Object.hasOwn(TARGET_INDEX_NAMES, normalized)) {
-    throw new Error("VECTORIZE_TARGET/--target must be preview or production.");
+    throw new Error("VECTORIZE_TARGET/--target must be production.");
   }
   return normalized;
 }
@@ -470,8 +470,9 @@ function validateProductionConfirmation({
   target,
   confirmation,
   corpusVersion,
+  required,
 }) {
-  if (target !== "production") return;
+  if (!required || target !== "production") return;
   if (confirmation !== corpusVersion) {
     throw new Error(
       `Production sync requires --confirm-production ${corpusVersion} (or VECTORIZE_CONFIRM_PRODUCTION) matching the corpus version.`,

@@ -4,13 +4,6 @@
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-07-29",
   "compatibility_flags": ["enable_request_signal"],
-  "vectorize": [
-    {
-      "binding": "SEARCH_INDEX",
-      "index_name": "world-foundation-search-openai-1536-preview",
-      "remote": true
-    }
-  ],
   "d1_databases": [
     {
       "binding": "SEARCH_RATE_LIMIT_DB",
@@ -22,18 +15,11 @@
   "vars": {
     "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
     "OPENAI_EMBEDDING_DIMENSIONS": "1536",
-    "SEARCH_ENABLED": "true",
+    "SEARCH_ENABLED": "false",
     "SEARCH_MIN_SCORE": "0.40"
   },
   "env": {
     "preview": {
-      "vectorize": [
-        {
-          "binding": "SEARCH_INDEX",
-          "index_name": "world-foundation-search-openai-1536-preview",
-          "remote": true
-        }
-      ],
       "d1_databases": [
         {
           "binding": "SEARCH_RATE_LIMIT_DB",
@@ -45,7 +31,7 @@
       "vars": {
         "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
         "OPENAI_EMBEDDING_DIMENSIONS": "1536",
-        "SEARCH_ENABLED": "true",
+        "SEARCH_ENABLED": "false",
         "SEARCH_MIN_SCORE": "0.40"
       }
     },
