@@ -113,7 +113,7 @@ Vectorize同期workflowとPagesの`SEARCH_INDEX` bindingはProduction resource�
 CloudflareのVectorize権限はaccount scopeで個別indexには制限できないため、
 Production Environmentだけへ書込みtokenを渡す構成そのものを権限境界にします。
 
-単独運用中の `main` と `preview` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。`main` は strict な `Cloudflare Pages` と `Verify semantic search changes without secrets`、`preview` は strict な `Verify semantic search changes without secrets` を必須にします。両 branch とも Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持します。`main` 向けPRを同じrepositoryの `preview` branchだけに限定する条件は、branch protectionそのものではなく必須 workflow check で検証します。
+単独運用中の `main` と `preview` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。両 branch は strict な `Verify semantic search changes without secrets` を必須にします。Pages Preview は保護済み `preview` のデプロイ観測に限り、`main` の必須ステータスにはしません。両 branch とも Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持します。`main` 向けPRを同じrepositoryの `preview` branchだけに限定する条件は、branch protectionそのものではなく必須 workflow check で検証します。
 
 この単独運用の例外は独立レビューを失う運用リスクです。GitHub はPR作成者自身の正式な `APPROVE` を許可しないため、Codexは最終push後のhead SHAに対するレビュー結果を `COMMENT` として監査記録に残します。ただし、required approval が 0 の間はこのCOMMENTもdismiss stale reviewもマージを止める強制ゲートにはなりません。特に `main` はProductionの公開元なので、別 reviewer を用意できた時点で両 branch を 1 承認と last-push approval へ戻します。workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にする場合は、独立 reviewer の用意と `require_code_owner_reviews` の有効化をセットで行います。
 
