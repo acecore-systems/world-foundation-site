@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 
 export const SEARCH_CORPUS_SCHEMA_VERSION = 1;
-export const SEARCH_EMBEDDING_MODEL = '@cf/baai/bge-m3';
-export const SEARCH_EMBEDDING_DIMENSIONS = 1024;
+export const SEARCH_EMBEDDING_MODEL = 'text-embedding-3-large';
+export const SEARCH_EMBEDDING_DIMENSIONS = 1536;
 export const SEARCH_DISTANCE_METRIC = 'cosine';
 export const SEARCH_VECTOR_LIMIT = 1000;
 

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
 	PRODUCTION_SYNC_ATTEMPT_ARTIFACT,
 	PRODUCTION_SYNC_SUCCESS_ARTIFACT,
+	PRODUCTION_VECTORIZE_INDEX,
 	createProductionSyncState,
 	parseProductionSyncState,
 	productionSyncStateMatches,
@@ -35,6 +36,11 @@ test('Production sync receiptはindexとcorpus identityを固定する', () => {
 	});
 
 	assert.deepEqual(parseProductionSyncState(JSON.stringify(receipt)), receipt);
+	assert.equal(
+		receipt.indexName,
+		'world-foundation-search-openai-1536-production',
+	);
+	assert.equal(receipt.indexName, PRODUCTION_VECTORIZE_INDEX);
 	assert.equal(
 		productionSyncStateMatches(receipt, {
 			siteCommit: SITE_A,
