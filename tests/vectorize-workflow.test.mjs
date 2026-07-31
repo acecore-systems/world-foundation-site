@@ -22,7 +22,7 @@ test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapper
 	assert.doesNotMatch(triggers, /^\s{2}schedule:/mu);
 	assert.match(
 		triggers,
-		/^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main\s*\n\s{6}- preview$/mu,
+		/^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main\s*\n\s{6}- preview\s*\n\s{4}paths-ignore:\s*\n\s{6}- \.github\/workflows\/sync-vectorize\.yml\s*\n\s{6}- tests\/vectorize-workflow\.test\.mjs$/mu,
 	);
 	assert.match(
 		triggers,
@@ -81,6 +81,22 @@ test('Production候補はexact Pages deploymentを待ち、成功checkを厳格�
 	assert.match(
 		productionJobs,
 		/github\.event_name == 'workflow_dispatch' &&\s+github\.ref == 'refs\/heads\/main' &&\s+inputs\.target == 'production'/u,
+	);
+	assert.match(
+		productionJobs,
+		/Detect the one-time workflow bootstrap/u,
+	);
+	assert.match(
+		productionJobs,
+		/\[\[ "\$\{commit_line\[1\]\}" == "\$BOOTSTRAP_BASE_SHA" \]\]/u,
+	);
+	assert.match(
+		productionJobs,
+		/steps\.bootstrap\.outputs\.skip != 'true'/u,
+	);
+	assert.match(
+		productionJobs,
+		/The one-time workflow bootstrap does not mutate Production state\./u,
 	);
 	assert.match(
 		productionJobs,
@@ -167,10 +183,14 @@ test('Production mutationを直列化し、attempt/success stateで重複と失�
 	const token = productionJobs.indexOf(
 		'CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN',
 	);
+	const openAiKey = productionJobs.indexOf(
+		'OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}',
+	);
 
 	assert.ok(recheck >= 0 && recheck < attempt);
 	assert.ok(attempt < mutation);
 	assert.ok(recheck < token);
+	assert.ok(recheck < openAiKey);
 	assert.ok(mutation < finalAssert);
 	assert.ok(finalAssert < success);
 });
@@ -206,27 +226,89 @@ test('Preview同期はbuild時とmutationの前後に保護branch identityを再
 		previewJobs.match(/^\s{10}verify_current_identities$/gmu)?.length,
 		2,
 	);
+	assert.match(
+		previewJobs,
+		/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/u,
+	);
+	assert.match(
+		previewJobs,
+		/if \[\[ -z "\$\{OPENAI_API_KEY:-\}" \]\]; then/u,
+	);
 });
 
-test('main向けPRは同じrepositoryのpreview branchと同一SHAのPreview証跡を要求する', async () => {
+test('OpenAI keyとCloudflare Vectorize tokenを別secretとして同期stepだけへ渡す', async () => {
+	const workflow = await readFile(workflowUrl, 'utf8');
+
+	assert.equal(
+		workflow.match(
+			/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/gu,
+		)?.length,
+		2,
+	);
+	assert.equal(
+		workflow.match(
+			/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_SEARCH_(?:PREVIEW|PRODUCTION)_API_TOKEN \}\}/gu,
+		)?.length,
+		2,
+	);
+	assert.doesNotMatch(workflow, /Workers AI Read/u);
+});
+
+test('main向けPRはprotected previewまたは同一treeの単一resolution commitだけを許可する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const pullRequestJob = workflow.slice(
 		workflow.indexOf('  verify-pull-request:'),
 		workflow.indexOf('\n  build-preview-corpus:'),
 	);
 
-	assert.match(
-		pullRequestJob,
-		/Require protected preview as the source of main promotions/u,
-	);
-	assert.match(pullRequestJob, /\[\[ "\$HEAD_REF" != "preview" \]\]/u);
+	assert.match(pullRequestJob, /Verify the main promotion source/u);
 	assert.match(
 		pullRequestJob,
 		/\[\[ "\$HEAD_REPOSITORY" != "\$EXPECTED_HEAD_REPOSITORY" \]\]/u,
 	);
 	assert.match(
 		pullRequestJob,
-		/actions\/runs\?branch=preview&head_sha=\$HEAD_SHA&status=completed/u,
+		/\[\[ "\$BASE_SHA" != "\$current_main_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$HEAD_SHA" != "\$current_preview_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\^codex\/preview-promotion-resolution-\(\[0-9a-f\]\{40\}\)\$/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$head_parent_count" != "1" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$head_parent_sha" != "\$current_main_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$head_tree_sha" != "\$preview_tree_sha" \]\]/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/'\.github\/workflows\/sync-vectorize\.yml:modified'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/'tests\/vectorize-workflow\.test\.mjs:modified'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/BOOTSTRAP_HEAD_REF: codex\/world-promotion-workflow-hardening-v2/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/steps\.promotion\.outputs\.mode != 'bootstrap'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/actions\/runs\?branch=preview&head_sha=\$PREVIEW_SHA&status=completed/u,
 	);
 	assert.match(pullRequestJob, /run\.conclusion === 'success'/u);
 	assert.match(pullRequestJob, /run-id: \$\{\{ steps\.preview-evidence\.outputs\.run_id \}\}/u);
