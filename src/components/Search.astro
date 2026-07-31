@@ -9,48 +9,68 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 		id="world-foundation-semantic-search-privacy"
 		class="semantic-search__privacy"
 		data-semantic-privacy
-	></p>
+	>
+	</p>
 	<section class="semantic-search" data-semantic-search hidden>
 		<div class="semantic-search__heading">
 			<h2 data-semantic-heading></h2>
 			<span aria-hidden="true">Vectorize</span>
 		</div>
-		<p class="semantic-search__status" data-semantic-status role="status" aria-live="polite"></p>
+		<p
+			class="semantic-search__status"
+			data-semantic-status
+			role="status"
+			aria-live="polite"
+		>
+		</p>
 		<ol class="semantic-search__results" data-semantic-results></ol>
+	</section>
+	<section class="network-search" data-network-search hidden>
+		<div class="semantic-search__heading">
+			<h2 data-network-heading></h2>
+		</div>
+		<ol class="semantic-search__results" data-network-results></ol>
 	</section>
 </template>
 
 <script>
-	type SearchResult = {
-		excerpt?: string;
-		id: string;
-		section?: string;
-		title: string;
-		url: string;
-	};
+	import {
+		fetchNetworkSearch,
+		type NetworkSearchResult,
+	} from '../scripts/network-search';
+	import { isStrictUuid } from '../scripts/search-response-safety.ts';
+	import { getSafeInternalUrl } from '../scripts/search-url-safety.ts';
 
-	type SearchResponse = {
-		ok?: boolean;
-		results?: SearchResult[];
+	type SearchResult = {
+		excerpt?: unknown;
+		section?: unknown;
+		title?: unknown;
+		url?: unknown;
 	};
 
 	const translations = {
 		ja: {
-			heading: '関連する内容',
-			searching: '意味が近い資料を検索しています…',
-			empty: '関連する資料は見つかりませんでした。',
-			found: (count: number) => `関連する資料が${count}件見つかりました。`,
+			heading: '意味の近い内容',
+			networkHeading: 'Acecore関連サイト',
+			searching: 'このサイトの公開資料を検索しています…',
+			found: (count: number) =>
+				'意味の近い資料が' + count + '件見つかりました。',
+			viewResult: 'ページを見る',
 			privacy:
-				'関連検索では、入力語を OpenAI に送信して公開資料と照合します。',
+				'検索語は、このサイトとAcecore関連サイトの公開情報を検索するために送信されます。個人情報・非公開情報は入力しないでください。',
 		},
 		en: {
-			heading: 'Related content',
-			searching: 'Looking for semantically related documents…',
-			empty: 'No related documents were found.',
+			heading: 'Semantically related content',
+			networkHeading: 'Related Acecore sites',
+			searching: 'Searching this site’s public documents…',
 			found: (count: number) =>
-				`${count} related ${count === 1 ? 'document' : 'documents'} found.`,
+				count +
+				' semantically related ' +
+				(count === 1 ? 'document' : 'documents') +
+				' found.',
+			viewResult: 'View page',
 			privacy:
-				'Related search sends your query to OpenAI and compares it with public documents.',
+				'Your query is sent to search this site and related Acecore public information. Do not enter personal or non-public information.',
 		},
 	} as const;
 
@@ -64,89 +84,208 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 		root.dataset.semanticSearchReady = 'true';
 		container.append(template.content.cloneNode(true));
 
-		const panel = container.querySelector<HTMLElement>('[data-semantic-search]');
-		const heading = panel?.querySelector<HTMLElement>('[data-semantic-heading]');
+		const panel = container.querySelector<HTMLElement>(
+			'[data-semantic-search]',
+		);
+		const heading = panel?.querySelector<HTMLElement>(
+			'[data-semantic-heading]',
+		);
 		const status = panel?.querySelector<HTMLElement>('[data-semantic-status]');
-		const results = panel?.querySelector<HTMLOListElement>('[data-semantic-results]');
-		const privacy = container.querySelector<HTMLElement>('[data-semantic-privacy]');
+		const results = panel?.querySelector<HTMLOListElement>(
+			'[data-semantic-results]',
+		);
+		const networkPanel = container.querySelector<HTMLElement>(
+			'[data-network-search]',
+		);
+		const networkHeading = networkPanel?.querySelector<HTMLElement>(
+			'[data-network-heading]',
+		);
+		const networkResults = networkPanel?.querySelector<HTMLOListElement>(
+			'[data-network-results]',
+		);
+		const privacy = container.querySelector<HTMLElement>(
+			'[data-semantic-privacy]',
+		);
 		const locale = document.documentElement.lang.toLowerCase().startsWith('en')
 			? 'en'
 			: 'ja';
 		const copy = translations[locale];
 
-		if (panel && heading && status && results && privacy) {
+		if (
+			panel &&
+			heading &&
+			status &&
+			results &&
+			networkPanel &&
+			networkHeading &&
+			networkResults &&
+			privacy
+		) {
 			heading.textContent = copy.heading;
+			networkHeading.textContent = copy.networkHeading;
 			privacy.textContent = copy.privacy;
 
 			let debounceTimer: number | undefined;
 			let activeController: AbortController | undefined;
+			let networkController: AbortController | undefined;
 			let requestSequence = 0;
 
-			const cancelPendingSearch = () => {
-				window.clearTimeout(debounceTimer);
-				debounceTimer = undefined;
-				requestSequence += 1;
-				activeController?.abort();
-				activeController = undefined;
+			const revealPagefindFallback = () => {
+				delete root.dataset.semanticPrimary;
+				delete root.dataset.semanticPending;
 			};
 
-			const hidePanel = () => {
+			const hideSemanticPanel = () => {
 				panel.hidden = true;
 				panel.removeAttribute('aria-busy');
 				status.textContent = '';
 				results.replaceChildren();
+				revealPagefindFallback();
 			};
 
-			const renderResults = (items: SearchResult[]) => {
+			const showSemanticLoading = () => {
+				delete root.dataset.semanticPrimary;
+				root.dataset.semanticPending = 'true';
+				panel.hidden = false;
+				panel.setAttribute('aria-busy', 'true');
 				results.replaceChildren();
+				status.textContent = copy.searching;
+			};
 
-				for (const item of items) {
-					if (
-						typeof item?.url !== 'string' ||
-						!item.url.startsWith('/') ||
-						item.url.startsWith('//') ||
-						item.url.includes('\\') ||
-						typeof item.title !== 'string'
-					) {
-						continue;
-					}
+			const clearNetworkResults = () => {
+				networkResults.replaceChildren();
+				networkPanel.hidden = true;
+			};
 
-					const resolvedUrl = new URL(item.url, window.location.origin);
-					if (resolvedUrl.origin !== window.location.origin) continue;
+			const safeInternalHref = (value: unknown) =>
+				getSafeInternalUrl(value, window.location.origin);
 
-					const link = document.createElement('a');
-					link.href = `${resolvedUrl.pathname}${resolvedUrl.search}${resolvedUrl.hash}`;
-					link.className = 'semantic-search__result';
+			const createSemanticResult = (item: SearchResult) => {
+				const href = safeInternalHref(item?.url);
+				if (typeof item?.title !== 'string' || !item.title.trim() || !href)
+					return null;
 
-					const title = document.createElement('strong');
-					title.textContent = item.title;
-					link.append(title);
+				const link = document.createElement('a');
+				link.href = href;
+				link.className = 'semantic-search__result';
 
-					if (item.section && item.section !== item.title) {
-						const section = document.createElement('span');
-						section.className = 'semantic-search__section';
-						section.textContent = item.section;
-						link.append(section);
-					}
+				const title = document.createElement('strong');
+				title.textContent = item.title;
+				link.append(title);
 
-					if (item.excerpt) {
-						const excerpt = document.createElement('span');
-						excerpt.className = 'semantic-search__excerpt';
-						excerpt.textContent = item.excerpt;
-						link.append(excerpt);
-					}
-
-					const listItem = document.createElement('li');
-					listItem.append(link);
-					results.append(listItem);
+				if (
+					typeof item.section === 'string' &&
+					item.section.trim() &&
+					item.section !== item.title
+				) {
+					const section = document.createElement('span');
+					section.className = 'semantic-search__section';
+					section.textContent = item.section;
+					link.append(section);
 				}
 
-				status.textContent =
-					results.childElementCount === 0
-						? copy.empty
-						: copy.found(results.childElementCount);
+				if (typeof item.excerpt === 'string' && item.excerpt.trim()) {
+					const excerpt = document.createElement('span');
+					excerpt.className = 'semantic-search__excerpt';
+					excerpt.textContent = item.excerpt;
+					link.append(excerpt);
+				}
+
+				const listItem = document.createElement('li');
+				listItem.append(link);
+				return listItem;
+			};
+
+			const renderSemanticResults = (items: SearchResult[]) => {
+				const rendered: HTMLLIElement[] = [];
+				for (const item of items) {
+					const listItem = createSemanticResult(item);
+					if (listItem) rendered.push(listItem);
+					if (rendered.length === 5) break;
+				}
+
+				results.replaceChildren(...rendered);
 				panel.removeAttribute('aria-busy');
+				if (rendered.length === 0) {
+					hideSemanticPanel();
+					return 0;
+				}
+
+				delete root.dataset.semanticPending;
+				root.dataset.semanticPrimary = 'true';
+				status.textContent = copy.found(rendered.length);
 				panel.hidden = false;
+				return rendered.length;
+			};
+
+			const createNetworkResult = (result: NetworkSearchResult) => {
+				const link = document.createElement('a');
+				link.href = result.url;
+				link.target = '_blank';
+				link.rel = 'noopener noreferrer';
+				link.className = 'semantic-search__result';
+
+				const title = document.createElement('strong');
+				title.textContent = result.title;
+				link.append(title);
+
+				const source = document.createElement('span');
+				source.className = 'network-search__source';
+				source.textContent = result.sourceLabel;
+				link.append(source);
+
+				if (result.section && result.section !== result.title) {
+					const section = document.createElement('span');
+					section.className = 'semantic-search__section';
+					section.textContent = result.section;
+					link.append(section);
+				}
+
+				if (result.excerpt) {
+					const excerpt = document.createElement('span');
+					excerpt.className = 'semantic-search__excerpt';
+					excerpt.textContent = result.excerpt;
+					link.append(excerpt);
+				}
+
+				const viewResult = document.createElement('span');
+				viewResult.className = 'network-search__link';
+				viewResult.textContent = copy.viewResult;
+				link.append(viewResult);
+
+				const listItem = document.createElement('li');
+				listItem.append(link);
+				return listItem;
+			};
+
+			const renderNetworkResults = (items: NetworkSearchResult[]) => {
+				const rendered = items.slice(0, 3).map(createNetworkResult);
+				networkResults.replaceChildren(...rendered);
+				networkPanel.hidden = rendered.length === 0;
+			};
+
+			const runNetworkSearch = (query: string, sequence: number) => {
+				networkController?.abort();
+				const controller = new AbortController();
+				networkController = controller;
+				const timeout = window.setTimeout(() => controller.abort(), 8_000);
+
+				void fetchNetworkSearch(query, 'world-foundation', controller.signal)
+					.then((items) => {
+						if (
+							controller === networkController &&
+							sequence === requestSequence
+						) {
+							renderNetworkResults(items);
+						}
+					})
+					.catch(() => {
+						// Related-site search is supplemental and must not affect local search.
+					})
+					.finally(() => {
+						window.clearTimeout(timeout);
+						if (controller === networkController) networkController = undefined;
+					});
 			};
 
 			const runSearch = async (query: string, sequence: number) => {
@@ -156,10 +295,17 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 				activeController = controller;
 				const timeout = window.setTimeout(() => controller.abort(), 8_000);
 
-				panel.hidden = false;
-				panel.setAttribute('aria-busy', 'true');
-				results.replaceChildren();
-				status.textContent = copy.searching;
+				const startNetworkSearch = () => {
+					if (
+						sequence !== requestSequence ||
+						controller !== activeController ||
+						controller.signal.aborted
+					) {
+						return;
+					}
+
+					runNetworkSearch(query, sequence);
+				};
 
 				try {
 					const response = await fetch('/api/search', {
@@ -173,25 +319,56 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 						signal: controller.signal,
 					});
 
-					if (sequence !== requestSequence) return;
+					if (sequence !== requestSequence || controller !== activeController)
+						return;
 					if (!response.ok) {
-						hidePanel();
+						hideSemanticPanel();
+						startNetworkSearch();
 						return;
 					}
 
-					const payload = (await response.json()) as SearchResponse;
-					if (sequence !== requestSequence) return;
-					if (payload.ok !== true) {
-						hidePanel();
+					const payload: unknown = await response.json();
+					if (sequence !== requestSequence || controller !== activeController)
+						return;
+					if (
+						!payload ||
+						typeof payload !== 'object' ||
+						Array.isArray(payload) ||
+						!('ok' in payload) ||
+						payload.ok !== true ||
+						!('requestId' in payload) ||
+						!isStrictUuid(payload.requestId) ||
+						!('results' in payload) ||
+						!Array.isArray(payload.results)
+					) {
+						hideSemanticPanel();
+						startNetworkSearch();
 						return;
 					}
-					renderResults(Array.isArray(payload.results) ? payload.results : []);
+
+					renderSemanticResults(payload.results as SearchResult[]);
+					startNetworkSearch();
 				} catch {
-					if (sequence === requestSequence) hidePanel();
+					if (sequence === requestSequence && controller === activeController) {
+						hideSemanticPanel();
+						startNetworkSearch();
+					}
 				} finally {
 					window.clearTimeout(timeout);
 					if (activeController === controller) activeController = undefined;
 				}
+			};
+
+			const cancelPendingSearch = () => {
+				window.clearTimeout(debounceTimer);
+				debounceTimer = undefined;
+				requestSequence += 1;
+				activeController?.abort();
+				activeController = undefined;
+				networkController?.abort();
+				networkController = undefined;
+				hideSemanticPanel();
+				clearNetworkResults();
 			};
 
 			const bindInput = (input: HTMLInputElement) => {
@@ -207,17 +384,12 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 
 				let isComposing = false;
 				const scheduleSearch = () => {
-					window.clearTimeout(debounceTimer);
-					activeController?.abort();
-					requestSequence += 1;
-
+					cancelPendingSearch();
 					const query = normalizeQuery(input.value);
-					if ([...query].length < 2) {
-						hidePanel();
-						return;
-					}
+					if ([...query].length < 2) return;
 
 					const sequence = requestSequence;
+					showSemanticLoading();
 					debounceTimer = window.setTimeout(
 						() => void runSearch(query, sequence),
 						450,
@@ -227,7 +399,6 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 				input.addEventListener('compositionstart', () => {
 					isComposing = true;
 					cancelPendingSearch();
-					hidePanel();
 				});
 				input.addEventListener('compositionend', () => {
 					isComposing = false;
@@ -250,11 +421,17 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 			const observer = new MutationObserver(bindPagefindInput);
 			observer.observe(container, { childList: true, subtree: true });
 
-			root.querySelector('dialog')?.addEventListener('close', () => {
-				cancelPendingSearch();
-				hidePanel();
-			});
-			window.addEventListener('pagehide', cancelPendingSearch, { once: true });
+			root
+				.querySelector('dialog')
+				?.addEventListener('close', cancelPendingSearch);
+			window.addEventListener(
+				'pagehide',
+				() => {
+					cancelPendingSearch();
+					observer.disconnect();
+				},
+				{ once: true },
+			);
 		}
 	}
 
@@ -278,13 +455,15 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 
 <style is:global>
 	@layer starlight.core {
-		.semantic-search {
+		.semantic-search,
+		.network-search {
 			margin-block-start: 1.25rem;
 			border-block-start: 1px solid var(--sl-color-gray-5);
 			padding-block-start: 1rem;
 		}
 
-		.semantic-search[hidden] {
+		.semantic-search[hidden],
+		.network-search[hidden] {
 			display: none;
 		}
 
@@ -348,9 +527,26 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 			font-size: var(--sl-text-sm);
 		}
 
-		.semantic-search__section {
+		.semantic-search__section,
+		.network-search__source,
+		.network-search__link {
 			color: var(--sl-color-text-accent);
 			font-size: var(--sl-text-xs);
+		}
+
+		.network-search__source {
+			color: var(--sl-color-gray-2);
+			font-weight: 600;
+		}
+
+		.network-search__link {
+			margin-block-start: 0.15rem;
+			font-weight: 600;
+		}
+
+		.network-search__link::after {
+			margin-inline-start: 0.35rem;
+			content: '↗';
 		}
 
 		.semantic-search__excerpt {
@@ -365,6 +561,11 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 
 		.semantic-search__privacy {
 			margin-block: 0.75rem 0;
+		}
+
+		site-search[data-semantic-primary='true'] .pagefind-ui__results-area,
+		site-search[data-semantic-pending='true'] .pagefind-ui__results-area {
+			display: none;
 		}
 	}
 </style>

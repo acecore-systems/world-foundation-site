@@ -39,12 +39,13 @@ The build script runs `scripts/sync-content.mjs` first. Generated pages are writ
 
 ## Search
 
-Starlight's Pagefind search remains the primary, browser-local search. Cloudflare Vectorize adds a fail-soft “Related content” section using OpenAI's `text-embedding-3-large` model with 1,536 dimensions.
+Cloudflare Vectorize is the primary search. When it returns valid local results, the search dialog shows those semantic results first. Starlight's browser-local Pagefind remains the fallback only when the Vectorize API is unavailable, rate-limited, unconfigured, malformed, or produces no valid result.
 
 - Pages Function: `/api/search`
-- Pages Preview has no Vectorize binding and keeps semantic search disabled; Pagefind remains available.
+- Pages Preview has no Vectorize binding, so it automatically uses Pagefind as the local fallback.
 - Production uses the single Vectorize candidate index and its D1 rate-limit database.
 - Index writes are only performed by the protected Production synchronization workflow.
+- A non-blocking lower “Acecore関連サイト” / “Related Acecore sites” section calls `https://acecore.net/api/network-search` with only `{ query, locale: 'ja' }`. The central service derives the caller from `Origin`; the client excludes its own source and strictly accepts only official HTTPS allowlisted results.
 - If OpenAI, Vectorize, or D1 is unavailable, Pagefind continues to work.
 - Production semantic search is enabled after the 1,536-dimension candidate index converged at 135 vectors and passed Japanese and English namespace canaries. Root and Pages Preview remain disabled. A protected `main` push synchronizes the exact public build automatically. Delivered Cloudflare Pages Production check events can synchronize content-only Deploy Hook builds sooner, while a separate 15-minute reconciliation workflow covers missed events; manual Production dispatch remains the force-repair path.
 
