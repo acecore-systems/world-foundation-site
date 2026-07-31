@@ -329,8 +329,9 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 	);
 });
 
-test('PreviewはVectorize bindingなし、Productionも収束までkill switchを維持する', async () => {
+test('PreviewはVectorize bindingなし、収束後はProductionだけ意味検索を有効化する', async () => {
 	const config = await readFile(wranglerConfigUrl, 'utf8');
+	const parsedConfig = JSON.parse(config);
 
 	assert.equal(
 		config.match(
@@ -342,6 +343,7 @@ test('PreviewはVectorize bindingなし、Productionも収束までkill switch�
 		config,
 		/world-foundation-search-openai-1536-preview/u,
 	);
-	assert.equal(config.match(/"SEARCH_ENABLED": "false"/gu)?.length, 3);
-	assert.doesNotMatch(config, /"SEARCH_ENABLED": "true"/u);
+	assert.equal(parsedConfig.vars.SEARCH_ENABLED, 'false');
+	assert.equal(parsedConfig.env.preview.vars.SEARCH_ENABLED, 'false');
+	assert.equal(parsedConfig.env.production.vars.SEARCH_ENABLED, 'true');
 });
