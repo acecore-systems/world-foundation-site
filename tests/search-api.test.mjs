@@ -61,12 +61,24 @@ test("同一originのJSON検索をlocale namespaceで実行し、安全な上位
       searchMatch("query-url", 0.78, "/docs/01-principles/?from=search", "ja"),
       searchMatch("hash-url", 0.77, "/docs/02-architecture/#section", "ja"),
       searchMatch("api-url", 0.76, "/api/private/", "ja"),
+      searchMatch("admin-url", 0.758, "/admin/private/", "ja"),
       searchMatch(
         "encoded-api-url",
         0.755,
         "/%252e%252e%252fapi/private/",
         "ja",
       ),
+      searchMatch(
+        "nfkc-admin-url",
+        0.753,
+        "/%EF%BC%85%36%31dmin/private/",
+        "ja",
+      ),
+      searchMatch("nfkc-api-url", 0.752, "/%EF%BC%85%36%31pi/private/", "ja"),
+      searchMatch("backslash-url", 0.751, "/safe\\private/", "ja"),
+      searchMatch("encoded-slash-url", 0.7508, "/safe%252fprivate/", "ja"),
+      searchMatch("tab-url", 0.7505, "\t/docs/00-vision/", "ja"),
+      searchMatch("control-url", 0.7501, "/safe/\u0001private/", "ja"),
       searchMatch("cross-origin", 0.75, "https://example.com/docs/", "ja"),
       searchMatch("wrong-locale", 0.74, "/en/docs/00-vision/", "en"),
       searchMatch("two", 0.73, "/docs/01-principles/", "ja"),
@@ -109,7 +121,7 @@ test("同一originのJSON検索をlocale namespaceで実行し、安全な上位
   assert.deepEqual(
     body.results.map(({ id, url, rank }) => ({ id, url, rank })),
     [
-      { id: "one", url: "/docs/00-vision/", rank: 1 },
+      { id: "duplicate-url", url: "/docs/00-vision/", rank: 1 },
       { id: "two", url: "/docs/01-principles/", rank: 2 },
       { id: "three", url: "/docs/02-architecture/", rank: 3 },
       { id: "four", url: "/docs/03-roadmap/", rank: 4 },
