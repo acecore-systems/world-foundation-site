@@ -132,14 +132,19 @@ jobs:
             node <<'NODE'
           const pullRequest = JSON.parse(process.env.PULL_REQUEST_JSON)
           const files = JSON.parse(process.env.CHANGED_FILES_JSON)
+          const changedFiles = files
+            .map((file) => `${file.filename}:${file.status}`)
+            .sort()
+          const expectedFiles = [
+            '.github/workflows/sync-vectorize.yml:modified',
+            'tests/vectorize-workflow.test.mjs:modified',
+          ]
           if (
             pullRequest.commits !== 1 ||
-            files.length !== 1 ||
-            files[0].filename !== '.github/workflows/sync-vectorize.yml' ||
-            files[0].status !== 'modified'
+            JSON.stringify(changedFiles) !== JSON.stringify(expectedFiles)
           ) {
             throw new Error(
-              'The one-time bootstrap may modify only the promotion workflow in one commit.',
+              'The one-time bootstrap may modify only the promotion workflow and its contract test in one commit.',
             )
           }
           NODE

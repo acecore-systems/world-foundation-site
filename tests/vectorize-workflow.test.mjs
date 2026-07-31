@@ -276,7 +276,11 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 	);
 	assert.match(
 		pullRequestJob,
-		/files\[0\]\.filename !== '\.github\/workflows\/sync-vectorize\.yml'/u,
+		/'\.github\/workflows\/sync-vectorize\.yml:modified'/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/'tests\/vectorize-workflow\.test\.mjs:modified'/u,
 	);
 	assert.match(
 		pullRequestJob,
