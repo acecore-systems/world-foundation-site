@@ -3,11 +3,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const PRODUCTION_SYNC_ATTEMPT_ARTIFACT =
-	'world-foundation-vectorize-production-attempt-v1';
+	'world-foundation-vectorize-production-attempt-v2';
 export const PRODUCTION_SYNC_SUCCESS_ARTIFACT =
-	'world-foundation-vectorize-production-success-v1';
+	'world-foundation-vectorize-production-success-v2';
 export const PRODUCTION_VECTORIZE_INDEX =
-	'world-foundation-search-production';
+	'world-foundation-search-openai-1536-production';
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/i;
 const CORPUS_VERSION_PATTERN = /^[0-9a-f]{20}$/i;

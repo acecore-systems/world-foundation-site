@@ -39,12 +39,12 @@ The build script runs `scripts/sync-content.mjs` first. Generated pages are writ
 
 ## Search
 
-Starlight's Pagefind search remains the primary, browser-local search. Cloudflare Vectorize adds a fail-soft “Related content” section using the multilingual `@cf/baai/bge-m3` embedding model.
+Starlight's Pagefind search remains the primary, browser-local search. Cloudflare Vectorize adds a fail-soft “Related content” section using OpenAI's `text-embedding-3-large` model with 1,536 dimensions.
 
 - Pages Function: `/api/search`
 - Preview and production use separate Vectorize indexes and D1 rate-limit databases.
 - Index writes are only performed by the protected synchronization workflow.
-- If Workers AI, Vectorize, or D1 is unavailable, Pagefind continues to work.
+- If OpenAI, Vectorize, or D1 is unavailable, Pagefind continues to work.
 - Production semantic search is enabled. A protected `main` push synchronizes the exact public build automatically. Delivered Cloudflare Pages Production check events can synchronize content-only Deploy Hook builds sooner, while a separate 15-minute reconciliation workflow covers missed events; manual Production dispatch remains the force-repair path.
 
 Starlight only mounts Pagefind and the related-content UI in a production build. Use a Pages preview or `wrangler pages dev` for rendered search QA; `astro dev` intentionally shows Starlight's development warning instead.

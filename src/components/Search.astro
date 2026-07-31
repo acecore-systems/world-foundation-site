@@ -41,7 +41,7 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 			empty: '関連する資料は見つかりませんでした。',
 			found: (count: number) => `関連する資料が${count}件見つかりました。`,
 			privacy:
-				'関連検索では、入力語を Cloudflare Workers AI に送信して公開資料と照合します。',
+				'関連検索では、入力語を OpenAI に送信して公開資料と照合します。',
 		},
 		en: {
 			heading: 'Related content',
@@ -50,7 +50,7 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 			found: (count: number) =>
 				`${count} related ${count === 1 ? 'document' : 'documents'} found.`,
 			privacy:
-				'Related search sends your query to Cloudflare Workers AI and compares it with public documents.',
+				'Related search sends your query to OpenAI and compares it with public documents.',
 		},
 	} as const;
 
