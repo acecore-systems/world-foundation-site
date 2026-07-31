@@ -25,7 +25,7 @@ GitHub Actionsからのみ実行します。`preview`はcorpusとPages deploymen
 | 環境       | Vectorize index                                  | D1 rate-limit database               | semantic search |
 | ---------- | ------------------------------------------------ | ------------------------------------ | --------------- |
 | Preview    | bindingなし                                      | `world-foundation-search-preview`    | 無効            |
-| Production | `world-foundation-search-openai-1536-production` | `world-foundation-search-production` | 収束後に有効化  |
+| Production | `world-foundation-search-openai-1536-production` | `world-foundation-search-production` | 有効            |
 
 embedding contract は次のとおりです。
 
@@ -45,9 +45,11 @@ OpenAI / 1536次元の旧Preview indexはGitHub Actions run
 [30598508701](https://github.com/acecore-systems/world-foundation-site/actions/runs/30598508701)
 で全件同期し、1536 dimensions / cosine、135 vectors、`ja` namespaceのquery結果を
 確認済みです。現在はbindingも同期経路も持たず、既存resourceを未参照のまま残します。
-Production indexは作成済みですが未同期のため、root、Preview、Productionの
-`SEARCH_ENABLED`はすべて`"false"`に保ちます。Production同期と日英canary完了後、
-別PRでProductionだけを`"true"`へ変更します。
+Production indexはGitHub Actions run
+[30602663665](https://github.com/acecore-systems/world-foundation-site/actions/runs/30602663665)
+で公開buildと一致する135 vectorsへ同期し、1536 dimensions / cosine、
+`ja` / `en` namespaceのquery結果を確認済みです。rootとPreviewは
+`SEARCH_ENABLED="false"`、Productionだけを`"true"`にします。
 
 ## 原典と公開 build の一致
 
@@ -137,8 +139,8 @@ volta run --node 24.18.0 npm run sync:vectorize:dry-run
 ```
 
 Preview deploymentではPagefindが動作し、`/api/search`がfail closedすることを
-確認します。23件の固定fixtureによる実Vectorize評価は、Production候補indexの
-収束後、別PRでProductionを有効化した直後のcanaryとして実行します。
+確認します。23件の固定fixtureによる実Vectorize評価は、Production有効化後の
+canaryとして実行します。
 
 Pages binding を含むローカル確認では、先に local D1 へ migration を適用します。
 
@@ -196,13 +198,12 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 
 ## OpenAI / 1536 次元移行 gate
 
-旧BGE-M3 / 1024次元構成の初回gateは完了していますが、新しいOpenAI / 1536次元
-Production候補indexは別リソースです。今回の移行PRではPreview bindingを置かず、
-全環境の`SEARCH_ENABLED=false`を維持します。GitHub-connected Production
-deployment後に候補indexを全件同期し、再実行のno-op、ID集合、corpus versionを
-確認してから、別PRでProductionだけを有効化します。有効化直後に日英canary、
-固定fixture、Pagefind fallbackを確認します。旧1024次元indexはrollback用に残し、
-canaryに失敗した場合は`SEARCH_ENABLED=false`へ戻すか旧bindingへ戻します。
+旧BGE-M3 / 1024次元構成の初回gateは完了しています。新しいOpenAI / 1536次元
+Production indexはGitHub-connected Production deployment後に135 vectorsへ全件同期し、
+ID集合、corpus version、日英namespace canaryを確認済みです。Previewはbindingなし・
+`SEARCH_ENABLED=false`を維持し、Productionだけを有効化します。旧1024次元indexは
+rollback用に残し、canaryに失敗した場合は`SEARCH_ENABLED=false`へ戻すか
+旧bindingへ戻します。
 
 ## 公式資料
 

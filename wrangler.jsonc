@@ -54,7 +54,7 @@
       "vars": {
         "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
         "OPENAI_EMBEDDING_DIMENSIONS": "1536",
-        "SEARCH_ENABLED": "false",
+        "SEARCH_ENABLED": "true",
         "SEARCH_MIN_SCORE": "0.40"
       }
     }
