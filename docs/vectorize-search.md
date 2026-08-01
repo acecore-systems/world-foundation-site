@@ -25,7 +25,7 @@ GitHub Environment、同期用token/secretを置かず、Vectorizeへ接続・�
 
 | 環境       | Vectorize index                                  | D1 rate-limit database               | semantic search |
 | ---------- | ------------------------------------------------ | ------------------------------------ | --------------- |
-| Preview    | なし（index / bindingなし）                       | `world-foundation-search-preview`    | 無効            |
+| Preview    | なし（index / bindingなし）                      | `world-foundation-search-production` | 無効            |
 | Production | `world-foundation-search-openai-1536-production` | `world-foundation-search-production` | 有効            |
 
 embedding contract は次のとおりです。
@@ -140,22 +140,20 @@ Preview deploymentではPagefindが動作し、`/api/search`がfail closedする
 確認します。23件の固定fixtureによる実Vectorize評価は、Production有効化後の
 canaryとして実行します。
 
-Pages binding を含むローカル確認では、先に local D1 へ migration を適用します。
+Pages binding を含むローカル確認では、Previewと共有するProduction名のlocal D1へ先にmigrationを適用します。
 
 ```powershell
-volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-search-preview --local
+volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-search-production --local
 volta run --node 24.18.0 npx wrangler pages dev --env preview
 ```
 
 Previewには`SEARCH_INDEX`がなく`SEARCH_ENABLED=false`のため、通常のローカル
 確認でOpenAI APIやVectorizeへ接続しません。
 
-remote D1 migration は deployment より先に明示適用し、未適用がないことを再確認します。
+remote D1 migration は共有するProduction databaseへdeploymentより先に明示適用し、未適用がないことを再確認します。
 
 ```powershell
-volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-search-preview --remote --env preview
 volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-search-production --remote --env production
-volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search-preview --remote --env preview
 volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search-production --remote --env production
 ```
 
