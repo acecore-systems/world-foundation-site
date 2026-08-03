@@ -12,6 +12,11 @@ const reconcileWorkflowUrl = new URL(
 );
 const wranglerConfigUrl = new URL('../wrangler.jsonc', import.meta.url);
 
+function parseTrailingCommaJson(text) {
+	// The tracked Wrangler config uses JSONC trailing commas without comments.
+	return JSON.parse(text.replace(/,\s*([}\]])/gu, '$1'));
+}
+
 test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapperへ分離する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const reconcileWorkflow = await readFile(reconcileWorkflowUrl, 'utf8');
@@ -255,7 +260,7 @@ test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡
 	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
-test('main向けPRはprotected previewまたは同一treeの単一resolution commitだけを許可する', async () => {
+test('main向けPRはprotected preview、同一treeのresolution、または限定した運用設定変更だけを許可する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const pullRequestJob = workflow.slice(
 		workflow.indexOf('  verify-pull-request:'),
@@ -305,7 +310,26 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 	);
 	assert.match(
 		pullRequestJob,
-		/steps\.promotion\.outputs\.mode != 'bootstrap'/u,
+		/OPERATIONAL_BOOTSTRAP_HEAD_REF: codex\/share-production-d1-20260731/u,
+	);
+	assert.match(
+		pullRequestJob,
+		/OPERATIONAL_BOOTSTRAP_PARENT_SHA: f4a13ceb5b9cc6c86b1f4986323858cc26249ea8/u,
+	);
+	assert.match(pullRequestJob, /'docs\/vectorize-search\.md:modified'/u);
+	assert.match(pullRequestJob, /'wrangler\.jsonc:modified'/u);
+	assert.match(pullRequestJob, /pullRequest\.commits !== 2/u);
+	assert.match(pullRequestJob, /mode=operational-bootstrap/u);
+	assert.match(pullRequestJob, /const operationalFiles = new Set/u);
+	assert.match(pullRequestJob, /pullRequest\.commits === 1/u);
+	assert.match(
+		pullRequestJob,
+		/process\.env\.HEAD_PARENT_SHA === process\.env\.CURRENT_MAIN_SHA/u,
+	);
+	assert.match(pullRequestJob, /mode=operational/u);
+	assert.match(
+		pullRequestJob,
+		/steps\.promotion\.outputs\.mode == 'preview' \|\| steps\.promotion\.outputs\.mode == 'resolution'/u,
 	);
 	assert.match(
 		pullRequestJob,
@@ -331,7 +355,7 @@ test('main向けPRはprotected previewまたは同一treeの単一resolution com
 
 test('PreviewはVectorize bindingなし、収束後はProductionだけ意味検索を有効化する', async () => {
 	const config = await readFile(wranglerConfigUrl, 'utf8');
-	const parsedConfig = JSON.parse(config);
+	const parsedConfig = parseTrailingCommaJson(config);
 
 	assert.equal(
 		config.match(
