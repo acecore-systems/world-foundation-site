@@ -7,56 +7,56 @@
   "d1_databases": [
     {
       "binding": "SEARCH_RATE_LIMIT_DB",
-      "database_name": "world-foundation-search-preview",
-      "database_id": "8e468251-3485-4e21-a589-e058eead16e8",
-      "migrations_dir": "./migrations/search"
-    }
+      "database_name": "world-foundation-search-production",
+      "database_id": "5ad187f4-ee0c-4939-a964-1906b8c6d23b",
+      "migrations_dir": "./migrations/search",
+    },
   ],
   "vars": {
     "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
     "OPENAI_EMBEDDING_DIMENSIONS": "1536",
     "SEARCH_ENABLED": "false",
-    "SEARCH_MIN_SCORE": "0.40"
+    "SEARCH_MIN_SCORE": "0.40",
   },
   "env": {
     "preview": {
       "d1_databases": [
         {
           "binding": "SEARCH_RATE_LIMIT_DB",
-          "database_name": "world-foundation-search-preview",
-          "database_id": "8e468251-3485-4e21-a589-e058eead16e8",
-          "migrations_dir": "./migrations/search"
-        }
+          "database_name": "world-foundation-search-production",
+          "database_id": "5ad187f4-ee0c-4939-a964-1906b8c6d23b",
+          "migrations_dir": "./migrations/search",
+        },
       ],
       "vars": {
         "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
         "OPENAI_EMBEDDING_DIMENSIONS": "1536",
         "SEARCH_ENABLED": "false",
-        "SEARCH_MIN_SCORE": "0.40"
-      }
+        "SEARCH_MIN_SCORE": "0.40",
+      },
     },
     "production": {
       "vectorize": [
         {
           "binding": "SEARCH_INDEX",
           "index_name": "world-foundation-search-openai-1536-production",
-          "remote": true
-        }
+          "remote": true,
+        },
       ],
       "d1_databases": [
         {
           "binding": "SEARCH_RATE_LIMIT_DB",
           "database_name": "world-foundation-search-production",
           "database_id": "5ad187f4-ee0c-4939-a964-1906b8c6d23b",
-          "migrations_dir": "./migrations/search"
-        }
+          "migrations_dir": "./migrations/search",
+        },
       ],
       "vars": {
         "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
         "OPENAI_EMBEDDING_DIMENSIONS": "1536",
         "SEARCH_ENABLED": "true",
-        "SEARCH_MIN_SCORE": "0.40"
-      }
-    }
-  }
+        "SEARCH_MIN_SCORE": "0.40",
+      },
+    },
+  },
 }
