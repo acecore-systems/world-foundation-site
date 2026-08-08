@@ -51,7 +51,9 @@ Cloudflare Vectorize is the primary search. When it returns valid local results,
 
 Starlight only mounts Pagefind and the related-content UI in a production build. Use a Pages preview or `wrangler pages dev` for rendered search QA; `astro dev` intentionally shows Starlight's development warning instead.
 
-See [the Vectorize operations guide](docs/vectorize-search.md) for resource names, synchronization safeguards, privacy controls, and release checks.
+See [the Vectorize operations guide](docs/04_運用設計/01_Vectorize検索運用.md) for resource names, synchronization safeguards, privacy controls, and release checks.
+
+See [the documentation index](docs/README.md) for this repository's requirements, architecture, and operations documents.
 
 ## Deployment
 

@@ -317,6 +317,7 @@ test('main向けPRはprotected preview、同一treeのresolution、または限�
 		/OPERATIONAL_BOOTSTRAP_PARENT_SHA: f4a13ceb5b9cc6c86b1f4986323858cc26249ea8/u,
 	);
 	assert.match(pullRequestJob, /'docs\/vectorize-search\.md:modified'/u);
+	assert.match(pullRequestJob, /'docs\/04_運用設計\/01_Vectorize検索運用\.md'/u);
 	assert.match(pullRequestJob, /'wrangler\.jsonc:modified'/u);
 	assert.match(pullRequestJob, /pullRequest\.commits !== 2/u);
 	assert.match(pullRequestJob, /mode=operational-bootstrap/u);
