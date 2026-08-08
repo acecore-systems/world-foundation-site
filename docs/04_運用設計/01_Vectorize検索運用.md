@@ -1,4 +1,4 @@
-# Vectorize 意味検索 運用ガイド
+# Vectorize検索運用
 
 World Foundation Site の検索は、次の 2 系統を同じ検索モーダルで提供します。
 

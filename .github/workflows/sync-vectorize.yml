@@ -222,7 +222,7 @@ jobs:
           const pullRequest = JSON.parse(process.env.PULL_REQUEST_JSON)
           const files = JSON.parse(process.env.CHANGED_FILES_JSON)
           const operationalFiles = new Set([
-            'docs/vectorize-search.md',
+            'docs/04_運用設計/01_Vectorize検索運用.md',
             'wrangler.jsonc',
           ])
           const isOperationalChange =
