@@ -260,7 +260,7 @@ test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡
 	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
-test('main向けPRはprotected preview、同一treeのresolution、または限定した運用設定変更だけを許可する', async () => {
+test('main向けPRは検証済み昇格経路または最新main由来の同一repository branchだけを許可する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const pullRequestJob = workflow.slice(
 		workflow.indexOf('  verify-pull-request:'),
@@ -316,18 +316,23 @@ test('main向けPRはprotected preview、同一treeのresolution、または限�
 		pullRequestJob,
 		/OPERATIONAL_BOOTSTRAP_PARENT_SHA: f4a13ceb5b9cc6c86b1f4986323858cc26249ea8/u,
 	);
-	assert.match(pullRequestJob, /'docs\/vectorize-search\.md:modified'/u);
-	assert.match(pullRequestJob, /'docs\/04_運用設計\/01_Vectorize検索運用\.md'/u);
-	assert.match(pullRequestJob, /'wrangler\.jsonc:modified'/u);
 	assert.match(pullRequestJob, /pullRequest\.commits !== 2/u);
 	assert.match(pullRequestJob, /mode=operational-bootstrap/u);
-	assert.match(pullRequestJob, /const operationalFiles = new Set/u);
-	assert.match(pullRequestJob, /pullRequest\.commits === 1/u);
+	assert.doesNotMatch(pullRequestJob, /const operationalFiles = new Set/u);
+	assert.doesNotMatch(pullRequestJob, /"mode=operational"/u);
+	assert.match(pullRequestJob, /compare\/\$current_main_sha\.\.\.\$HEAD_SHA/u);
+	assert.match(pullRequestJob, /comparison\.status \|\| '-'/u);
+	assert.match(pullRequestJob, /comparison\.ahead_by \?\? -1/u);
 	assert.match(
 		pullRequestJob,
-		/process\.env\.HEAD_PARENT_SHA === process\.env\.CURRENT_MAIN_SHA/u,
+		/comparison\.merge_base_commit\?\.sha \|\| '-'/u,
 	);
-	assert.match(pullRequestJob, /mode=operational/u);
+	assert.match(pullRequestJob, /\[\[ "\$comparison_status" != "ahead" \]\]/u);
+	assert.match(
+		pullRequestJob,
+		/\[\[ "\$comparison_merge_base_sha" != "\$current_main_sha" \]\]/u,
+	);
+	assert.match(pullRequestJob, /mode=direct/u);
 	assert.match(
 		pullRequestJob,
 		/steps\.promotion\.outputs\.mode == 'preview' \|\| steps\.promotion\.outputs\.mode == 'resolution'/u,
