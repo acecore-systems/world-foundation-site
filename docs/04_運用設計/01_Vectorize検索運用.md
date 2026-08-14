@@ -118,8 +118,9 @@ Production Environmentだけへ書込みtokenを渡す構成そのものを権�
 この単独運用の例外は独立レビューを失う運用リスクです。GitHub はPR作成者自身の正式な `APPROVE` を許可しないため、Codexは最終push後のhead SHAに対するレビュー結果を `COMMENT` として監査記録に残します。ただし、required approval が 0 の間はこのCOMMENTもdismiss stale reviewもマージを止める強制ゲートにはなりません。特に `main` はProductionの公開元なので、別 reviewer を用意できた時点で両 branch を 1 承認と last-push approval へ戻します。workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にする場合は、独立 reviewer の用意と `require_code_owner_reviews` の有効化をセットで行います。
 
 Pages PreviewはVectorize resourceとbindingを持たず、`SEARCH_ENABLED=false`でPagefindだけを
-検証します。Cloudflare PagesのPreview branch controlは保護済み`preview`だけを
-許可し、`preview → main`のGit連携昇格フローを維持します。
+検証します。Cloudflare PagesのPreview branch controlは`custom`とし、`cms/pending/*`を除く
+すべてのbranchを許可します。feature branchは固有URLで確認でき、保護済み`preview`だけを
+corpus identityの観測と`preview → main`のGit連携昇格フローに使います。
 
 ## 手元での検証
 
