@@ -59,6 +59,8 @@ See [the documentation index](docs/README.md) for this repository's requirements
 
 Cloudflare Pages is connected to this repository through the Git integration. Cloudflare clones this repository on each push, fetches the source documents from `acecore-systems/world-foundation`, builds Starlight, and publishes the result.
 
+Feature branches receive Cloudflare Pages Preview deployments. Reviewed pull requests merge directly into `main`; a `main` push is the only Git-connected Production release path.
+
 Cloudflare Pages settings:
 
 ```txt
