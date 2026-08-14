@@ -1,18 +1,56 @@
-:root {
-	--ink: #050b0e;
-	--ink-soft: #0b1519;
-	--midnight: #0b1c27;
-	--slate: #294453;
-	--glass: #b7d6de;
-	--ivory: #ead9b8;
-	--ivory-bright: #f5ead5;
-	--brass: #b9905c;
-	--rust: #c4523a;
+/**
+ * World Foundation UI foundation.
+ *
+ * Tailwind v4 is intentionally imported without full Preflight: Starlight keeps
+ * ownership of its document reset, while the official compatibility package
+ * restores the small base rules its components require.
+ */
+@layer base, starlight, theme, components, utilities;
+
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source '../components';
+@source '../layouts';
+@source '../pages';
+
+@theme {
+	--color-wf-ink: #050b0e;
+	--color-wf-ink-soft: #0b1519;
+	--color-wf-midnight: #0b1c27;
+	--color-wf-slate: #294453;
+	--color-wf-glass: #b7d6de;
+	--color-wf-ivory: #ead9b8;
+	--color-wf-ivory-bright: #f5ead5;
+	--color-wf-brass: #b9905c;
+	--color-wf-rust: #c4523a;
+	--color-wf-404-canvas: #101318;
+	--color-wf-404-text: #f4f6f8;
+	--color-wf-404-muted: #b8c0cc;
+	--color-wf-404-link: #8ab4ff;
+	--font-wf-serif: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", serif;
+	--font-wf-sans: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+	--font-wf-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--ease-wf-enter: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer components {
+html.wf-landing {
+	--ink: var(--color-wf-ink);
+	--ink-soft: var(--color-wf-ink-soft);
+	--midnight: var(--color-wf-midnight);
+	--slate: var(--color-wf-slate);
+	--glass: var(--color-wf-glass);
+	--ivory: var(--color-wf-ivory);
+	--ivory-bright: var(--color-wf-ivory-bright);
+	--brass: var(--color-wf-brass);
+	--rust: var(--color-wf-rust);
 	--rule: rgb(185 144 92 / 34%);
 	--rule-soft: rgb(234 217 184 / 15%);
 	--rail-width: clamp(74px, 7.8vw, 112px);
-	--serif: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", serif;
-	--sans: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+	--serif: var(--font-wf-serif);
+	--sans: var(--font-wf-sans);
 	color-scheme: dark;
 	font-family: var(--serif);
 	background: var(--ink);
@@ -21,18 +59,18 @@
 	text-rendering: optimizeLegibility;
 }
 
-*,
-*::before,
-*::after {
+html.wf-landing *,
+html.wf-landing *::before,
+html.wf-landing *::after {
 	box-sizing: border-box;
 }
 
-html {
+html.wf-landing {
 	scroll-behavior: smooth;
 	background: var(--ink);
 }
 
-body {
+html.wf-landing body {
 	margin: 0;
 	overflow-x: hidden;
 	background: var(--ink);
@@ -40,20 +78,20 @@ body {
 	-webkit-font-smoothing: antialiased;
 }
 
-a {
+html.wf-landing a {
 	color: inherit;
 }
 
-button,
-a {
+html.wf-landing button,
+html.wf-landing a {
 	font: inherit;
 }
 
-img {
+html.wf-landing img {
 	display: block;
 }
 
-.visually-hidden {
+html.wf-landing .visually-hidden {
 	position: absolute;
 	width: 1px;
 	height: 1px;
@@ -65,7 +103,7 @@ img {
 	border: 0;
 }
 
-.skip-link {
+html.wf-landing .skip-link {
 	position: fixed;
 	z-index: 1000;
 	inset: 12px auto auto 12px;
@@ -79,7 +117,7 @@ img {
 	transition: transform 160ms ease;
 }
 
-.skip-link:focus {
+html.wf-landing .skip-link:focus {
 	transform: translateY(0);
 }
 
@@ -842,12 +880,12 @@ img {
 	margin-top: 0;
 }
 
-a:focus-visible {
+html.wf-landing a:focus-visible {
 	outline: 2px solid var(--ivory-bright);
 	outline-offset: 4px;
 }
 
-.reveal-ready [data-reveal] {
+html.wf-landing.reveal-ready [data-reveal] {
 	opacity: 0;
 	transform: translateY(22px);
 	transition:
@@ -855,7 +893,7 @@ a:focus-visible {
 		transform 720ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.reveal-ready [data-reveal].is-visible {
+html.wf-landing.reveal-ready [data-reveal].is-visible {
 	opacity: 1;
 	transform: translateY(0);
 }
@@ -897,7 +935,7 @@ a:focus-visible {
 }
 
 @media (max-width: 820px) {
-	:root {
+	html.wf-landing {
 		--rail-width: 0px;
 	}
 
@@ -1138,31 +1176,31 @@ a:focus-visible {
 }
 
 @media (min-width: 821px) and (max-width: 1080px) {
-	:lang(en) .module-list {
+	html.wf-landing:lang(en) .module-list {
 		grid-template-columns: 1fr;
 	}
 
-	:lang(en) .module-list li:last-child {
+	html.wf-landing:lang(en) .module-list li:last-child {
 		grid-column: auto;
 		width: auto;
 	}
 
-	:lang(en) .module-list a {
+	html.wf-landing:lang(en) .module-list a {
 		grid-template-columns: minmax(9em, auto) minmax(0, 1fr);
 		gap: 12px;
 	}
 
-	:lang(en) .module-list span {
+	html.wf-landing:lang(en) .module-list span {
 		overflow-wrap: normal;
 	}
 }
 
 @media (min-width: 821px) {
-	html:lang(en) .story-row {
+	html.wf-landing:lang(en) .story-row {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	html:lang(en) .story-rail {
+	html.wf-landing:lang(en) .story-rail {
 		display: none;
 	}
 }
@@ -1172,15 +1210,15 @@ a:focus-visible {
 }
 
 @media (min-width: 861px) {
-	html:lang(ja) {
+	html.wf-landing:lang(ja) {
 		scrollbar-width: none;
 	}
 
-	html:lang(ja) body::-webkit-scrollbar {
+	html.wf-landing:lang(ja) body::-webkit-scrollbar {
 		display: none;
 	}
 
-	html:lang(ja) {
+	html.wf-landing:lang(ja) {
 	.story {
 		position: relative;
 		container-type: inline-size;
@@ -1820,21 +1858,129 @@ a:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	html {
+	html.wf-landing {
 		scroll-behavior: auto;
 	}
 
-	*,
-	*::before,
-	*::after {
+	html.wf-landing *,
+	html.wf-landing *::before,
+	html.wf-landing *::after {
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
 		scroll-behavior: auto !important;
 		transition-duration: 0.01ms !important;
 	}
 
-	.reveal-ready [data-reveal] {
+	html.wf-landing.reveal-ready [data-reveal] {
 		opacity: 1;
 		transform: none;
+	}
+}
+
+}
+
+@layer starlight.core {
+	.semantic-search,
+	.network-search {
+		@apply mt-5 border-t pt-4;
+		border-block-start-color: var(--sl-color-gray-5);
+	}
+
+	.semantic-search[hidden],
+	.network-search[hidden] {
+		display: none;
+	}
+
+	.semantic-search__heading {
+		@apply mb-3 flex items-center justify-between gap-4;
+	}
+
+	.semantic-search__heading h2 {
+		@apply m-0;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-lg);
+	}
+
+	.semantic-search__heading > span {
+		@apply border px-2;
+		border-color: var(--sl-color-gray-5);
+		border-radius: 999px;
+		padding-block: 0.15rem;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-2xs);
+		letter-spacing: 0.04em;
+	}
+
+	.semantic-search__status,
+	.semantic-search__privacy {
+		@apply m-0;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-xs);
+	}
+
+	.semantic-search__results {
+		@apply m-0 grid list-none gap-2 p-0;
+	}
+
+	.semantic-search__result {
+		@apply grid gap-1 border;
+		border-color: var(--sl-color-gray-5);
+		border-radius: 0.4rem;
+		padding: 0.75rem 0.875rem;
+		background: var(--sl-color-black);
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+	}
+
+	.semantic-search__result:hover,
+	.semantic-search__result:focus-visible {
+		border-color: var(--sl-color-accent-high);
+		background: var(--sl-color-accent-low);
+	}
+
+	.semantic-search__result strong {
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-sm);
+	}
+
+	.semantic-search__section,
+	.network-search__source,
+	.network-search__link {
+		color: var(--sl-color-text-accent);
+		font-size: var(--sl-text-xs);
+	}
+
+	.network-search__source {
+		color: var(--sl-color-gray-2);
+		font-weight: 600;
+	}
+
+	.network-search__link {
+		margin-block-start: 0.15rem;
+		font-weight: 600;
+	}
+
+	.network-search__link::after {
+		margin-inline-start: 0.35rem;
+		content: '↗';
+	}
+
+	.semantic-search__excerpt {
+		display: -webkit-box;
+		overflow: hidden;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-xs);
+		line-height: 1.55;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+	}
+
+	.semantic-search__privacy {
+		margin-block: 0.75rem 0;
+	}
+
+	site-search[data-semantic-primary='true'] .pagefind-ui__results-area,
+	site-search[data-semantic-pending='true'] .pagefind-ui__results-area {
+		display: none;
 	}
 }

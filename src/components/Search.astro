@@ -4,6 +4,12 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 
 <DefaultSearch {...Astro.props} />
 
+{/*
+	The primary and pending semantic-search states keep Pagefind supplemental.
+	`data-semantic-primary='true'` / `data-semantic-pending='true'` hide
+	`.pagefind-ui__results-area` in src/styles/tailwind.css.
+*/}
+
 <template id="world-foundation-semantic-search">
 	<p
 		id="world-foundation-semantic-search-privacy"
@@ -452,120 +458,3 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 		}
 	}
 </script>
-
-<style is:global>
-	@layer starlight.core {
-		.semantic-search,
-		.network-search {
-			margin-block-start: 1.25rem;
-			border-block-start: 1px solid var(--sl-color-gray-5);
-			padding-block-start: 1rem;
-		}
-
-		.semantic-search[hidden],
-		.network-search[hidden] {
-			display: none;
-		}
-
-		.semantic-search__heading {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: 1rem;
-			margin-block-end: 0.75rem;
-		}
-
-		.semantic-search__heading h2 {
-			margin: 0;
-			color: var(--sl-color-white);
-			font-size: var(--sl-text-lg);
-		}
-
-		.semantic-search__heading > span {
-			border: 1px solid var(--sl-color-gray-5);
-			border-radius: 999px;
-			padding: 0.15rem 0.5rem;
-			color: var(--sl-color-gray-3);
-			font-size: var(--sl-text-2xs);
-			letter-spacing: 0.04em;
-		}
-
-		.semantic-search__status,
-		.semantic-search__privacy {
-			margin: 0;
-			color: var(--sl-color-gray-3);
-			font-size: var(--sl-text-xs);
-		}
-
-		.semantic-search__results {
-			display: grid;
-			gap: 0.5rem;
-			margin: 0;
-			padding: 0;
-			list-style: none;
-		}
-
-		.semantic-search__result {
-			display: grid;
-			gap: 0.25rem;
-			border: 1px solid var(--sl-color-gray-5);
-			border-radius: 0.4rem;
-			padding: 0.75rem 0.875rem;
-			background: var(--sl-color-black);
-			color: var(--sl-color-gray-2);
-			text-decoration: none;
-		}
-
-		.semantic-search__result:hover,
-		.semantic-search__result:focus-visible {
-			border-color: var(--sl-color-accent-high);
-			background: var(--sl-color-accent-low);
-		}
-
-		.semantic-search__result strong {
-			color: var(--sl-color-white);
-			font-size: var(--sl-text-sm);
-		}
-
-		.semantic-search__section,
-		.network-search__source,
-		.network-search__link {
-			color: var(--sl-color-text-accent);
-			font-size: var(--sl-text-xs);
-		}
-
-		.network-search__source {
-			color: var(--sl-color-gray-2);
-			font-weight: 600;
-		}
-
-		.network-search__link {
-			margin-block-start: 0.15rem;
-			font-weight: 600;
-		}
-
-		.network-search__link::after {
-			margin-inline-start: 0.35rem;
-			content: '↗';
-		}
-
-		.semantic-search__excerpt {
-			display: -webkit-box;
-			overflow: hidden;
-			color: var(--sl-color-gray-3);
-			font-size: var(--sl-text-xs);
-			line-height: 1.55;
-			-webkit-box-orient: vertical;
-			-webkit-line-clamp: 2;
-		}
-
-		.semantic-search__privacy {
-			margin-block: 0.75rem 0;
-		}
-
-		site-search[data-semantic-primary='true'] .pagefind-ui__results-area,
-		site-search[data-semantic-pending='true'] .pagefind-ui__results-area {
-			display: none;
-		}
-	}
-</style>
