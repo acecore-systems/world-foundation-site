@@ -17,9 +17,10 @@ Vectorize を AI 回答生成には使いません。公開済み設計資料の
 6. Pages Function `/api/search` が query を OpenAI の同じ model で embedding し、binding 経由で表示中の言語 namespace を検索する。
 
 公開書き込み API はありません。index 更新は protected `main` 上のProduction
-GitHub Actionsからのみ実行します。`preview`はcorpusとPages deploymentの
-同一性だけをsecretなしで検証します。PreviewにはVectorize index、binding、
-GitHub Environment、同期用token/secretを置かず、Vectorizeへ接続・同期しません。
+GitHub Actionsからのみ実行します。同じrepositoryのfeature branchから`main`への
+Pull Requestは、exact headと現在の原典からbuild、test、同期dry-runをsecretなしで
+検証します。Pages PreviewにはVectorize index、binding、GitHub Environment、
+同期用token/secretを置かず、Vectorizeへ接続・同期しません。
 
 ## Cloudflare リソース
 
@@ -40,7 +41,7 @@ Vectorize の上限が 1536 次元のため、`text-embedding-3-large` の既定
 
 Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の Dashboard 設定は `wrangler pages download config world-foundation-site` で取得し、project 名、output directory、compatibility date、空の production environment だけであることを確認済みです。
 
-Pages Function 用の `OPENAI_API_KEY` はProductionのsecretとして使用します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` はProduction GitHub Environment secretへ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。PreviewにはVectorize同期用のGitHub Environment、Cloudflare token、OpenAI secretを置かず、移行gateもこれらを参照しません。
+Pages Function 用の `OPENAI_API_KEY` はProductionのsecretとして使用します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` はProduction GitHub Environment secretへ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。PreviewにはVectorize同期用のGitHub Environment、Cloudflare token、OpenAI secretを置かず、Pull Request検証にもこれらを渡しません。
 
 Preview向けのOpenAI / 1536次元indexは削除済みです。PreviewはVectorize index、
 binding、同期経路を持たず、Pagefindだけを検証します。Production indexはGitHub Actions run
@@ -66,18 +67,16 @@ production 同期は、公開 marker が示す両 commit を checkout して cor
 
 `.github/workflows/sync-vectorize.yml` は次を提供します。
 
-- Pull Request: secret なしで build、検索テスト、型検査、Pages Functions bundle、同期 dry-run を検証。
-- `preview` push: review済み `preview` と原典 `main` からcorpusを作り、Pages Previewのbuild markerと一致することをsecretなしで検証。
+- feature branchから`main`へのPull Request: exact headと現在の原典を使い、secretなしでbuild、検索テスト、型検査、Pages Functions bundle、同期dry-runを検証。
 - `main` push: exact site SHA の公開完了後、現在公開中の組み合わせを production index へ自動同期。
 - Cloudflare Pages Production check: GitHubがexternal appの`check_run`を配信した場合、Deploy Hookを含む immutable deployment と custom domain の 3 値一致後に自動同期。
 - `.github/workflows/reconcile-vectorize.yml`: 毎時 7、22、37、52 分に公開中の組み合わせを再照合。
 - 手動 `production`: 同期済み判定を無視し、現在公開中の組み合わせを production index へ強制再同期・修復。
 
-運用移行中は feature branch から `preview` への Pull Request、Pagefindと
-Preview deploy/corpus identityの検証、`preview` から `main` への Pull Request
-の順に進めます。この移行版が `main` へ反映された後は、最新の protected `main`
-をmerge baseに持つ同一repositoryの feature branchも `main` 向けPRにできます。
-長期 `preview` branchと専用昇格gateは、direct-to-mainの実地検証後に廃止します。
+site変更は、最新のprotected `main` をmerge baseに持つ同一repositoryのfeature branchから
+`main`へ直接Pull Requestを作ります。必須checkとCloudflare Pages Previewで検証し、merge後の
+`main` pushでProduction公開とVectorize同期を行います。長期release branchや二段階昇格は
+設けません。
 
 原典 repository の `main` 更新だけでは site repository の Pull Request check は再実行されません。公開後の Production 同期は、Deploy Hook が作る Cloudflare Pages check と15分ごとの再照合が補完します。GitHubは再帰防止のため、head SHAがGitHub Actionsに関連付くcheck eventを抑止する場合があります。Pages checkのeventが届かない場合や形式を検証できない場合も、定期再照合が公開markerを検出します。marker不一致runではmutationせず、次の定期再照合または手動 Production dispatchへ倒します。
 
@@ -115,14 +114,14 @@ Vectorize同期workflowとPagesの`SEARCH_INDEX` bindingはProduction resource�
 CloudflareのVectorize権限はaccount scopeで個別indexには制限できないため、
 Production Environmentだけへ書込みtokenを渡す構成そのものを権限境界にします。
 
-単独運用中の `main` と `preview` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。両 branch は strict な `Verify semantic search changes without secrets` を必須にします。Pages Preview は保護済み `preview` のデプロイ観測に限り、`main` の必須ステータスにはしません。両 branch とも Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持します。`main` 向けPRを同じrepositoryの `preview` branchだけに限定する条件は、branch protectionそのものではなく必須 workflow check で検証します。
+単独運用中の `main` は明示承認により required approval を 0、last-push approval を無効にしています。dismiss stale review は有効のままです。strict な `Verify semantic search changes without secrets` を必須にし、Pull Request、admin への保護適用、linear history、conversation resolution、force push / branch delete 禁止を維持します。必須workflowは`main`向けPRが同じrepositoryから作られ、baseが現在のprotected `main`、headがそのcommitより先行していることも検証します。Cloudflare Pages PreviewはPRごとの表示確認に使いますが、`main`の必須ステータスにはしません。
 
-この単独運用の例外は独立レビューを失う運用リスクです。GitHub はPR作成者自身の正式な `APPROVE` を許可しないため、Codexは最終push後のhead SHAに対するレビュー結果を `COMMENT` として監査記録に残します。ただし、required approval が 0 の間はこのCOMMENTもdismiss stale reviewもマージを止める強制ゲートにはなりません。特に `main` はProductionの公開元なので、別 reviewer を用意できた時点で両 branch を 1 承認と last-push approval へ戻します。workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にする場合は、独立 reviewer の用意と `require_code_owner_reviews` の有効化をセットで行います。
+この単独運用の例外は独立レビューを失う運用リスクです。GitHub はPR作成者自身の正式な `APPROVE` を許可しないため、Codexは最終push後のhead SHAに対するレビュー結果を `COMMENT` として監査記録に残します。ただし、required approval が 0 の間はこのCOMMENTもdismiss stale reviewもマージを止める強制ゲートにはなりません。`main` はProductionの公開元なので、別 reviewer を用意できた時点で1承認とlast-push approvalへ戻します。workflow と `scripts/sync-vectorize.mjs` を CODEOWNERS の対象にする場合は、独立 reviewer の用意と `require_code_owner_reviews` の有効化をセットで行います。
 
 Pages PreviewはVectorize resourceとbindingを持たず、`SEARCH_ENABLED=false`でPagefindだけを
 検証します。Cloudflare PagesのPreview branch controlは`custom`とし、`cms/pending/*`を除く
-すべてのbranchを許可します。feature branchは固有URLで確認でき、保護済み`preview`だけを
-corpus identityの観測と`preview → main`のGit連携昇格フローに使います。
+すべてのbranchを許可します。各feature branchは固有URLで確認し、review済みPull Requestを
+`main`へ直接mergeします。
 
 ## 手元での検証
 

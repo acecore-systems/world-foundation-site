@@ -17,7 +17,7 @@ function parseTrailingCommaJson(text) {
 	return JSON.parse(text.replace(/,\s*([}\]])/gu, '$1'));
 }
 
-test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapperへ分離する', async () => {
+test('coreはmain pushとPages checkを受け、scheduleを薄いwrapperへ分離する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const reconcileWorkflow = await readFile(reconcileWorkflowUrl, 'utf8');
 	const triggers = workflow.slice(
@@ -28,7 +28,7 @@ test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapper
 	assert.doesNotMatch(triggers, /^\s{2}schedule:/mu);
 	assert.match(
 		triggers,
-		/^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main\s*\n\s{6}- preview\s*\n\s{4}paths-ignore:\s*\n\s{6}- \.github\/workflows\/sync-vectorize\.yml\s*\n\s{6}- tests\/vectorize-workflow\.test\.mjs$/mu,
+		/^\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main$/mu,
 	);
 	assert.match(
 		triggers,
@@ -37,7 +37,7 @@ test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapper
 	assert.match(triggers, /^\s{2}workflow_call:/mu);
 	assert.match(
 		triggers,
-		/^\s{2}pull_request:\s*\n\s{4}types:\s*\n(?:\s{6}- .+\n)*\s{6}- edited$/mu,
+		/^\s{2}pull_request:\s*\n\s{4}types:\s*\n(?:\s{6}- .+\n)*\s{6}- edited\s*\n\s{4}branches:\s*\n\s{6}- main$/mu,
 	);
 	assert.match(
 		reconcileWorkflow,
@@ -48,10 +48,8 @@ test('coreはmain/preview pushとPages checkを受け、scheduleを薄いwrapper
 		/uses: \.\/\.github\/workflows\/sync-vectorize\.yml/u,
 	);
 	assert.match(reconcileWorkflow, /production_reconcile: true/u);
-	assert.match(
-		workflow,
-		/github\.event_name == 'push' &&\s+github\.ref == 'refs\/heads\/preview'/u,
-	);
+	assert.doesNotMatch(triggers, /preview/iu);
+	assert.doesNotMatch(triggers, /paths-ignore:/u);
 	assert.doesNotMatch(triggers, /target:/u);
 });
 
@@ -89,21 +87,10 @@ test('Production候補はexact Pages deploymentを待ち、成功checkを厳格�
 		productionJobs,
 		/github\.event_name == 'workflow_dispatch' &&\s+github\.ref == 'refs\/heads\/main'/u,
 	);
+	assert.doesNotMatch(productionJobs, /\bbootstrap\b/iu);
 	assert.match(
 		productionJobs,
-		/Detect the one-time workflow bootstrap/u,
-	);
-	assert.match(
-		productionJobs,
-		/\[\[ "\$\{commit_line\[1\]\}" == "\$BOOTSTRAP_BASE_SHA" \]\]/u,
-	);
-	assert.match(
-		productionJobs,
-		/steps\.bootstrap\.outputs\.skip != 'true'/u,
-	);
-	assert.match(
-		productionJobs,
-		/The one-time workflow bootstrap does not mutate Production state\./u,
+		/Verify deployment verifier belongs to protected main/u,
 	);
 	assert.match(
 		productionJobs,
@@ -202,43 +189,20 @@ test('Production mutationを直列化し、attempt/success stateで重複と失�
 	assert.ok(finalAssert < success);
 });
 
-test('PreviewはVectorizeを使わずbuild/deploymentと保護branch identityだけを検証する', async () => {
+test('長期preview branch固有jobを持たず、PR検証はsecretを使わない', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
-	const previewJobs = workflow.slice(
-		workflow.indexOf('  build-preview-corpus:'),
+	const pullRequestJob = workflow.slice(
+		workflow.indexOf('  verify-pull-request:'),
 		workflow.indexOf('\n  resolve-production-deployment:'),
 	);
 
-	assert.match(
-		previewJobs,
-		/Preview corpus verification only accepts the current protected source branch commit\./u,
-	);
-	assert.match(
-		previewJobs,
-		/Preview corpus verification only accepts the current content main commit\./u,
-	);
-	assert.match(
-		previewJobs,
-		/Protected preview source changed during verification\./u,
-	);
-	assert.match(
-		previewJobs,
-		/Content main changed during Preview verification\./u,
-	);
-	assert.match(
-		previewJobs,
-		/https:\/\/preview\.world-foundation-site\.pages\.dev\/\.well-known\/world-foundation-build\.json/u,
-	);
-	assert.match(previewJobs, /--assert-current\s+\\\s+payload\/corpus\.json/u);
-	assert.equal(
-		previewJobs.match(/^\s{10}verify_current_identities$/gmu)?.length,
-		2,
-	);
-	assert.doesNotMatch(previewJobs, /environment:/u);
-	assert.doesNotMatch(previewJobs, /CLOUDFLARE_API_TOKEN/u);
-	assert.doesNotMatch(previewJobs, /OPENAI_API_KEY/u);
-	assert.doesNotMatch(previewJobs, /--target preview/u);
-	assert.doesNotMatch(previewJobs, /Sync the preview index/u);
+	assert.doesNotMatch(workflow, /^  build-preview-corpus:/mu);
+	assert.doesNotMatch(workflow, /^  verify-preview-deployment:/mu);
+	assert.doesNotMatch(workflow, /refs\/heads\/preview/u);
+	assert.doesNotMatch(workflow, /protected preview/iu);
+	assert.doesNotMatch(pullRequestJob, /environment:/u);
+	assert.doesNotMatch(pullRequestJob, /CLOUDFLARE_API_TOKEN/u);
+	assert.doesNotMatch(pullRequestJob, /OPENAI_API_KEY/u);
 });
 
 test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡す', async () => {
@@ -260,14 +224,14 @@ test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡
 	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
-test('main向けPRは検証済み昇格経路または最新main由来の同一repository branchだけを許可する', async () => {
+test('main向けPRは最新main由来の同一repository branchだけを許可する', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 	const pullRequestJob = workflow.slice(
 		workflow.indexOf('  verify-pull-request:'),
-		workflow.indexOf('\n  build-preview-corpus:'),
+		workflow.indexOf('\n  resolve-production-deployment:'),
 	);
 
-	assert.match(pullRequestJob, /Verify the main promotion source/u);
+	assert.match(pullRequestJob, /Verify the direct main pull request source/u);
 	assert.match(
 		pullRequestJob,
 		/\[\[ "\$HEAD_REPOSITORY" != "\$EXPECTED_HEAD_REPOSITORY" \]\]/u,
@@ -276,50 +240,6 @@ test('main向けPRは検証済み昇格経路または最新main由来の同一r
 		pullRequestJob,
 		/\[\[ "\$BASE_SHA" != "\$current_main_sha" \]\]/u,
 	);
-	assert.match(
-		pullRequestJob,
-		/\[\[ "\$HEAD_SHA" != "\$current_preview_sha" \]\]/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/\^codex\/preview-promotion-resolution-\(\[0-9a-f\]\{40\}\)\$/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/\[\[ "\$head_parent_count" != "1" \]\]/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/\[\[ "\$head_parent_sha" != "\$current_main_sha" \]\]/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/\[\[ "\$head_tree_sha" != "\$preview_tree_sha" \]\]/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/'\.github\/workflows\/sync-vectorize\.yml:modified'/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/'tests\/vectorize-workflow\.test\.mjs:modified'/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/BOOTSTRAP_HEAD_REF: codex\/world-promotion-workflow-hardening-v2/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/OPERATIONAL_BOOTSTRAP_HEAD_REF: codex\/share-production-d1-20260731/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/OPERATIONAL_BOOTSTRAP_PARENT_SHA: f4a13ceb5b9cc6c86b1f4986323858cc26249ea8/u,
-	);
-	assert.match(pullRequestJob, /pullRequest\.commits !== 2/u);
-	assert.match(pullRequestJob, /mode=operational-bootstrap/u);
-	assert.doesNotMatch(pullRequestJob, /const operationalFiles = new Set/u);
-	assert.doesNotMatch(pullRequestJob, /"mode=operational"/u);
 	assert.match(pullRequestJob, /compare\/\$current_main_sha\.\.\.\$HEAD_SHA/u);
 	assert.match(pullRequestJob, /comparison\.status \|\| '-'/u);
 	assert.match(pullRequestJob, /comparison\.ahead_by \?\? -1/u);
@@ -332,31 +252,11 @@ test('main向けPRは検証済み昇格経路または最新main由来の同一r
 		pullRequestJob,
 		/\[\[ "\$comparison_merge_base_sha" != "\$current_main_sha" \]\]/u,
 	);
-	assert.match(pullRequestJob, /mode=direct/u);
-	assert.match(
-		pullRequestJob,
-		/steps\.promotion\.outputs\.mode == 'preview' \|\| steps\.promotion\.outputs\.mode == 'resolution'/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/actions\/runs\?branch=preview&head_sha=\$PREVIEW_SHA&status=completed/u,
-	);
-	assert.match(pullRequestJob, /run\.event === 'push'/u);
-	assert.match(pullRequestJob, /run\.conclusion === 'success'/u);
-	assert.match(pullRequestJob, /world-foundation-preview-corpus-\*/u);
-	assert.match(pullRequestJob, /run-id: \$\{\{ steps\.preview-evidence\.outputs\.run_id \}\}/u);
-	assert.match(
-		pullRequestJob,
-		/https:\/\/preview\.world-foundation-site\.pages\.dev\/\.well-known\/world-foundation-build\.json/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/"\$PREVIEW_BUILD_MARKER_URL"\s+\\\s+"\$EXPECTED_SITE_COMMIT"/u,
-	);
-	assert.match(
-		pullRequestJob,
-		/--assert-current\s+\\\s+preview-evidence\/corpus\.json/u,
-	);
+	assert.match(pullRequestJob, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
+	assert.match(pullRequestJob, /--target production/u);
+	assert.doesNotMatch(pullRequestJob, /bootstrap/iu);
+	assert.doesNotMatch(pullRequestJob, /preview/iu);
+	assert.doesNotMatch(pullRequestJob, /promotion/iu);
 });
 
 test('PreviewはVectorize bindingなし、収束後はProductionだけ意味検索を有効化する', async () => {
