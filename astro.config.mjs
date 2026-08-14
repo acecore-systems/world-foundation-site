@@ -1,13 +1,18 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import tailwindcss from '@tailwindcss/vite';
 import mermaid from 'astro-mermaid';
 
 export default defineConfig({
+	vite: {
+		plugins: [tailwindcss()],
+	},
 	site: 'https://world-foundation-site.pages.dev',
 	integrations: [
 		mermaid(),
 		starlight({
+			customCss: ['./src/styles/tailwind.css'],
 			title: {
 				ja: 'World Foundation設計',
 				en: 'World Foundation Design',
