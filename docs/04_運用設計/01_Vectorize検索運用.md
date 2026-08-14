@@ -73,9 +73,11 @@ production 同期は、公開 marker が示す両 commit を checkout して cor
 - `.github/workflows/reconcile-vectorize.yml`: 毎時 7、22、37、52 分に公開中の組み合わせを再照合。
 - 手動 `production`: 同期済み判定を無視し、現在公開中の組み合わせを production index へ強制再同期・修復。
 
-通常の変更は feature branch から `preview` への Pull Request、Pagefindと
+運用移行中は feature branch から `preview` への Pull Request、Pagefindと
 Preview deploy/corpus identityの検証、`preview` から `main` への Pull Request
-の順に進めます。`main` 向けPRは同じrepositoryの `preview` branchだけを許可します。
+の順に進めます。この移行版が `main` へ反映された後は、最新の protected `main`
+をmerge baseに持つ同一repositoryの feature branchも `main` 向けPRにできます。
+長期 `preview` branchと専用昇格gateは、direct-to-mainの実地検証後に廃止します。
 
 原典 repository の `main` 更新だけでは site repository の Pull Request check は再実行されません。公開後の Production 同期は、Deploy Hook が作る Cloudflare Pages check と15分ごとの再照合が補完します。GitHubは再帰防止のため、head SHAがGitHub Actionsに関連付くcheck eventを抑止する場合があります。Pages checkのeventが届かない場合や形式を検証できない場合も、定期再照合が公開markerを検出します。marker不一致runではmutationせず、次の定期再照合または手動 Production dispatchへ倒します。
 
