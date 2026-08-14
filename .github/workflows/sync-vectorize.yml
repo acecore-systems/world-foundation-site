@@ -210,37 +210,26 @@ jobs:
             exit 0
           fi
 
-          pull_request_json="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
-          changed_files_json="$(
-            gh api "repos/$REPOSITORY/pulls/$PR_NUMBER/files?per_page=100"
+          comparison_json="$(
+            gh api "repos/$REPOSITORY/compare/$current_main_sha...$HEAD_SHA"
           )"
-          PULL_REQUEST_JSON="$pull_request_json" \
-          CHANGED_FILES_JSON="$changed_files_json" \
-          HEAD_PARENT_SHA="$head_parent_sha" \
-          CURRENT_MAIN_SHA="$current_main_sha" \
-          node <<'NODE'
-          const pullRequest = JSON.parse(process.env.PULL_REQUEST_JSON)
-          const files = JSON.parse(process.env.CHANGED_FILES_JSON)
-          const operationalFiles = new Set([
-            'docs/04_運用設計/01_Vectorize検索運用.md',
-            'wrangler.jsonc',
-          ])
-          const isOperationalChange =
-            pullRequest.commits === 1 &&
-            pullRequest.changed_files === files.length &&
-            process.env.HEAD_PARENT_SHA === process.env.CURRENT_MAIN_SHA &&
-            files.length > 0 &&
-            files.every(
-              (file) =>
-                file.status === 'modified' && operationalFiles.has(file.filename),
-            )
-          if (!isOperationalChange) {
-            throw new Error(
-              'Main changes must come from protected preview, an exact-tree resolution branch, or a one-commit operational D1/docs change.',
-            )
-          }
+          read -r comparison_status comparison_ahead_by comparison_merge_base_sha <<< "$(
+            COMPARISON_JSON="$comparison_json" node <<'NODE'
+          const comparison = JSON.parse(process.env.COMPARISON_JSON)
+          console.log(
+            comparison.status || '-',
+            comparison.ahead_by ?? -1,
+            comparison.merge_base_commit?.sha || '-',
+          )
           NODE
-          echo "mode=operational" >> "$GITHUB_OUTPUT"
+          )"
+          if [[ "$comparison_status" != "ahead" ]] ||
+             [[ ! "$comparison_ahead_by" =~ ^[1-9][0-9]*$ ]] ||
+             [[ "$comparison_merge_base_sha" != "$current_main_sha" ]]; then
+            echo "::error::Direct main pull requests must be based on the latest protected main commit."
+            exit 1
+          fi
+          echo "mode=direct" >> "$GITHUB_OUTPUT"
           echo "preview_sha=" >> "$GITHUB_OUTPUT"
 
       - name: Resolve successful Preview corpus evidence
