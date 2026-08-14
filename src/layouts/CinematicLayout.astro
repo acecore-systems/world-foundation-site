@@ -1,5 +1,5 @@
 ---
-import '../styles/cinematic-landing.css';
+import '../styles/tailwind.css';
 
 interface Props {
 	title: string;
@@ -13,7 +13,7 @@ const socialImage = new URL('/lp-cinematic/og-world-foundation.jpg', Astro.site)
 ---
 
 <!doctype html>
-<html lang={lang}>
+<html lang={lang} class="wf-landing scroll-smooth bg-wf-ink">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -44,7 +44,7 @@ const socialImage = new URL('/lp-cinematic/og-world-foundation.jpg', Astro.site)
 		/>
 		<title>{title}</title>
 	</head>
-	<body>
+	<body class="bg-wf-ink font-wf-serif text-wf-ivory antialiased">
 		<a class="skip-link" href="#main-content">{lang === 'ja' ? '本文へ移動' : 'Skip to content'}</a>
 		<slot />
 	</body>
