@@ -38,7 +38,7 @@ test('Production sync receiptはindexとcorpus identityを固定する', () => {
 	assert.deepEqual(parseProductionSyncState(JSON.stringify(receipt)), receipt);
 	assert.equal(
 		receipt.indexName,
-		'world-foundation-search-openai-1536-production',
+		'world-foundation-search-bge-m3-1024-production-v1',
 	);
 	assert.equal(receipt.indexName, PRODUCTION_VECTORIZE_INDEX);
 	assert.equal(

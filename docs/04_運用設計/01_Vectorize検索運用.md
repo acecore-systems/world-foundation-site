@@ -3,7 +3,7 @@
 World Foundation Site の検索は、次の 2 系統を同じ検索モーダルで提供します。
 
 - Pagefind: ブラウザ内で動くキーワード検索。常に主検索として残す。
-- Cloudflare Vectorize: OpenAI Embeddings API の多言語 embedding を使う「関連する内容」。失敗時はこの欄だけを隠し、Pagefind を継続する。
+- Cloudflare Vectorize: Workers AI のBGE-M3多言語embeddingを使う「関連する内容」。失敗時はこの欄だけを隠し、Pagefind を継続する。
 
 Vectorize を AI 回答生成には使いません。公開済み設計資料の候補を返す検索補助として扱います。
 
@@ -12,9 +12,9 @@ Vectorize を AI 回答生成には使いません。公開済み設計資料の
 1. `scripts/sync-content.mjs` が原典を同期し、公開 route と原典 commit を `.vectorize/content-manifest.json` に記録する。
 2. Astro と Starlight が静的サイトと Pagefind index を `dist/` に生成する。
 3. `scripts/build-search-corpus.mjs` が公開 HTML から本文を抽出し、`.vectorize/corpus.json` を生成する。
-4. `scripts/sync-vectorize.mjs` が全 chunk を OpenAI へ直接送って再 embedding し、Vectorize へ upsert して同じ ID の values / metadata 破損も修復する。
+4. `scripts/sync-vectorize.mjs` が全 chunk をCloudflare Workers AIへ送って再 embedding し、Vectorize へ upsert して同じ ID の values / metadata 破損も修復する。
 5. corpus から消えた ID を削除し、最後の mutation が検索可能になるまで待つ。
-6. Pages Function `/api/search` が query を OpenAI の同じ model で embedding し、binding 経由で表示中の言語 namespace を検索する。
+6. Pages Function `/api/search` がネイティブ `AI` bindingの同じmodelでqueryをembeddingし、binding経由で表示中の言語namespaceを検索する。
 
 公開書き込み API はありません。index 更新は protected `main` 上のProduction
 GitHub Actionsからのみ実行します。同じrepositoryのfeature branchから`main`への
@@ -24,30 +24,29 @@ Pull Requestは、exact headと現在の原典からbuild、test、同期dry-run
 
 ## Cloudflare リソース
 
-| 環境       | Vectorize index                                  | D1 rate-limit database               | semantic search |
-| ---------- | ------------------------------------------------ | ------------------------------------ | --------------- |
-| Preview    | なし（index / bindingなし）                      | `world-foundation-search-production` | 無効            |
-| Production | `world-foundation-search-openai-1536-production` | `world-foundation-search-production` | 有効            |
+| 環境       | Vectorize index                                     | D1 rate-limit database               | semantic search |
+| ---------- | --------------------------------------------------- | ------------------------------------ | --------------- |
+| Preview    | なし（index / bindingなし）                         | `world-foundation-search-production` | 無効            |
+| Production | `world-foundation-search-bge-m3-1024-production-v1` | `world-foundation-search-production` | 有効            |
 
 embedding contract は次のとおりです。
 
-- model: `text-embedding-3-large`
-- dimensions: `1536`（OpenAI の `dimensions` parameter で短縮）
-- encoding: `float`
+- model: `@cf/baai/bge-m3`
+- dimensions: `1024`
+- pooling: `cls`
 - metric: `cosine`
 - chunk: 850 文字目標 / 1200 文字上限 / 120 文字 overlap
 
-Vectorize の上限が 1536 次元のため、`text-embedding-3-large` の既定 3072 次元は保存せず、query と corpus の両方を同じ 1536 次元で生成します。model、dimensions、metric は既存 index 内で混在させません。全件同期と検索評価の完了後、旧 BGE-M3 / 1024 次元のProduction indexは削除済みであり、OpenAI / 1536 次元のProduction indexだけを使用します。
+queryとcorpusの両方を同じBGE-M3 / 1024次元 / cosine契約で生成します。model、dimensions、metricは既存index内で混在させません。旧OpenAI / 1536次元のProduction indexは即時rollback用に保持し、この移行では削除しません。
 
 Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の Dashboard 設定は `wrangler pages download config world-foundation-site` で取得し、project 名、output directory、compatibility date、空の production environment だけであることを確認済みです。
 
-Pages Function 用の `OPENAI_API_KEY` はProductionのsecretとして使用します。`wrangler.jsonc` の `vars` には model と dimensions だけを置き、key は記録しません。同期 workflow 用の GitHub `OPENAI_API_KEY` はProduction GitHub Environment secretへ投入し、Cloudflare token から OpenAI へ認証情報を転用しません。Production の scheduled reusable workflow も called workflow 内で同じ Production Environment を選ぶため、この Environment secret を参照します。PreviewにはVectorize同期用のGitHub Environment、Cloudflare token、OpenAI secretを置かず、Pull Request検証にもこれらを渡しません。
+Pages FunctionはProductionだけに置いたネイティブ `AI` bindingを使用します。`wrangler.jsonc` の `vars` にはmodelとdimensionsを置き、検索embedding用の外部API keyは持ちません。同期workflowはProduction GitHub EnvironmentのCloudflare tokenでWorkers AI REST APIとVectorizeを呼びます。PreviewにはVectorize/AI binding、同期用GitHub Environment、Cloudflare tokenを置かず、Pull Request検証にもsecretを渡しません。
 
-Preview向けのOpenAI / 1536次元indexは削除済みです。PreviewはVectorize index、
+Preview向けindexは置きません。PreviewはVectorize index、
 binding、同期経路を持たず、Pagefindだけを検証します。Production indexはGitHub Actions run
 [30602663665](https://github.com/acecore-systems/world-foundation-site/actions/runs/30602663665)
-で公開buildと一致する135 vectorsへ同期し、1536 dimensions / cosine、
-`ja` / `en` namespaceのquery結果を確認済みです。rootとPreviewは
+で公開buildと一致する135 vectorsへ同期した記録は旧OpenAI indexの証跡です。新BGE-M3 indexの完了判定には使いません。rootとPreviewは
 `SEARCH_ENABLED="false"`、Productionだけを`"true"`にします。
 
 ## 原典と公開 build の一致
@@ -99,16 +98,14 @@ Vectorizeは同じindexへin-placeでupsertするため、厳密な原子的切�
 
 Production同期で参照するGitHub Environmentとenvironment secretは次のとおりです。
 
-| GitHub Environment                              | Cloudflare Environment secret            | OpenAI Environment secret | 同期先           |
-| ----------------------------------------------- | ---------------------------------------- | ------------------------- | ---------------- |
-| `cloudflare-world-foundation-search-production` | `CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN` | `OPENAI_API_KEY`          | production index |
+| GitHub Environment                              | Cloudflare Environment secret            | 同期先           |
+| ----------------------------------------------- | ---------------------------------------- | ---------------- |
+| `cloudflare-world-foundation-search-production` | `CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN` | production index |
 
 Production Environmentは`main`だけに制限します。Cloudflare tokenはAcecore
-accountだけをresourceに指定し、同期に必要なVectorize権限だけを付与します。
-OpenAI keyはWorld Foundation検索用projectのservice account keyとし、
-Cloudflare tokenと共有・代用しません。どちらの値もrepo、設定、ログ、PR本文へ
-書きません。secretはbuildへ渡さず、fresh runnerの最終同期stepだけに渡します。
-Preview用のGitHub Environment、同期token、OpenAI secret、Vectorize indexは削除済みです。
+accountだけをresourceに指定し、同期に必要なWorkers AI ReadとVectorize Read / Writeだけを付与します。
+値はrepo、設定、ログ、PR本文へ書きません。secretはbuildへ渡さず、fresh runnerの最終同期stepだけに渡します。
+Preview用のGitHub Environment、同期token、Vectorize indexは置きません。
 Vectorize同期workflowとPagesの`SEARCH_INDEX` bindingはProduction resourceだけを参照します。
 
 CloudflareのVectorize権限はaccount scopeで個別indexには制限できないため、
@@ -150,7 +147,7 @@ volta run --node 24.18.0 npx wrangler pages dev --env preview
 ```
 
 Previewには`SEARCH_INDEX`がなく`SEARCH_ENABLED=false`のため、通常のローカル
-確認でOpenAI APIやVectorizeへ接続しません。
+確認でWorkers AIやVectorizeへ接続しません。
 
 remote D1 migration は共有するProduction databaseへdeploymentより先に明示適用し、未適用がないことを再確認します。
 
@@ -180,8 +177,8 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 - body は 2 KiB、query は 2〜160 文字、`topK` と model は server 側で固定する。
 - 全体 300 回/分を先に、client 20 回/分を次に固定窓で D1 へ fail-closed に適用する。全体上限到達後は caller UUID ごとの row を作らない。
 - client key はブラウザの session UUID を SHA-256 化して使い、接続 IP は rate limit DBへ使わない。期限切れ row は各検索の前に削除する。
-- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は OpenAI project の利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
-- browser が検索を中止した場合は `request.signal` を OpenAI fetch へ伝播し、Vectorize query の前にも中止状態を確認する。
+- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は Workers AI の利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
+- browser が検索を中止した場合はWorkers AI実行の前後とVectorize queryの前に中止状態を確認する。
 - metadata の URL は同一 Origin の root-relative 公開 route だけを許可する。
 - response は `Cache-Control: no-store`。runtime log は request ID、stage、error class だけを記録する。
 - `SEARCH_ENABLED` を `"false"` にすると、UI と Pagefind を壊さず意味検索 API を停止できる。
@@ -191,14 +188,13 @@ volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search
 1. Pagefind のキーワード検索が動くことを確認する。
 2. `/api/search` の status と `X-Search-Request-Id` を確認する。
 3. Pages Functions の runtime log を request ID で追う。query 本文は記録されない。
-4. OpenAI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
+4. Workers AI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
 5. index を作り直す場合は新 index の同期と canary を終えてから binding を切り替える。切替前に現在のProduction indexを削除しない。
 
-## OpenAI / 1536 次元移行 gate
+## BGE-M3 / 1024次元移行 gate
 
-旧BGE-M3 / 1024次元構成の初回gateは完了し、旧Production indexは削除済みです。OpenAI / 1536次元
-Production indexはGitHub-connected Production deployment後に135 vectorsへ全件同期し、
-ID集合、corpus version、日英namespace canaryを確認済みです。PreviewはVectorize resource / bindingなし・
+新しいBGE-M3 / 1024次元Production indexは、GitHub-connected Production deployment前に全件同期し、
+ID集合、corpus version、日英namespace canaryを確認します。直前のOpenAI / 1536次元indexはrollback用に残します。PreviewはVectorize resource / bindingなし・
 `SEARCH_ENABLED=false`を維持し、Productionだけを有効化します。canaryに失敗した場合は
 `SEARCH_ENABLED=false`へ戻してPagefindを継続し、必要なら新しい互換indexを構築してbindingを切り替えます。
 
@@ -207,8 +203,8 @@ ID集合、corpus version、日英namespace canaryを確認済みです。Previe
 - [Vectorize client API](https://developers.cloudflare.com/vectorize/reference/client-api/)
 - [Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)
 - [Vectorize insert best practices](https://developers.cloudflare.com/vectorize/best-practices/insert-vectors/)
-- [OpenAI Embeddings API](https://developers.openai.com/api/reference/resources/embeddings/methods/create)
-- [OpenAI text-embedding-3-large](https://developers.openai.com/api/docs/models/text-embedding-3-large)
+- [Workers AI BGE-M3](https://developers.cloudflare.com/workers-ai/models/bge-m3/)
+- [Workers AI REST API](https://developers.cloudflare.com/api/resources/ai/subresources/run/methods/create/)
 - [Pages Functions bindings](https://developers.cloudflare.com/pages/functions/bindings/)
 - [Pages Wrangler configuration](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)
 - [Pages preview aliases and immutable deployment URLs](https://developers.cloudflare.com/pages/configuration/preview-deployments/#preview-aliases)

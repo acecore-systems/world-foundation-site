@@ -18,17 +18,15 @@ import {
 } from "./search-contract.mjs";
 
 const CLOUDFLARE_API_BASE_URL = "https://api.cloudflare.com/client/v4";
-const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 export const ACECORE_CLOUDFLARE_ACCOUNT_ID = "db9b62f409f463da7acbcc374b8385d0";
 const DEFAULT_CORPUS_FILE = resolve(".vectorize/corpus.json");
-const EMBEDDING_BATCH_SIZE = 32;
+const EMBEDDING_BATCH_SIZE = 16;
 const UPSERT_BATCH_SIZE = 200;
 const DELETE_BATCH_SIZE = 100;
 const LIST_BATCH_SIZE = 1000;
 const CONVERGENCE_WAIT_TIMEOUT_MS = 180_000;
 const CONVERGENCE_POLL_INTERVAL_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 30_000;
-const MAX_OPENAI_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_CLOUDFLARE_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 500;
@@ -43,7 +41,7 @@ const MANAGED_VECTOR_ID_PATTERN = new RegExp(
   `^${escapeRegExp(SEARCH_VECTOR_ID_PREFIX)}[0-9a-f]{${SEARCH_VECTOR_ID_HASH_CHARACTERS}}$`,
 );
 const TARGET_INDEX_NAMES = Object.freeze({
-  production: "world-foundation-search-openai-1536-production",
+  production: "world-foundation-search-bge-m3-1024-production-v1",
 });
 const SUPPORTED_LOCALES = ["ja", "en"];
 
@@ -55,19 +53,9 @@ class CloudflareApiError extends Error {
   }
 }
 
-class OpenAiApiError extends Error {
-  constructor(code, status) {
-    super(code);
-    this.name = "OpenAiApiError";
-    this.code = code;
-    this.status = status;
-  }
-}
-
 export async function syncVectorize({
   accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
   apiToken = process.env.CLOUDFLARE_API_TOKEN,
-  openAiApiKey = process.env.OPENAI_API_KEY,
   target = process.env.VECTORIZE_TARGET,
   confirmProduction = process.env.VECTORIZE_CONFIRM_PRODUCTION,
   expectedSiteCommit = process.env.VECTORIZE_EXPECTED_SITE_COMMIT,
@@ -111,9 +99,6 @@ export async function syncVectorize({
       "CLOUDFLARE_API_TOKEN is required for a live Vectorize sync.",
     );
   }
-  if (!dryRun && (typeof openAiApiKey !== "string" || !openAiApiKey.trim())) {
-    throw new Error("OPENAI_API_KEY is required for a live Vectorize sync.");
-  }
   if (!dryRun && !trustedAutomation) {
     throw new Error(
       "Live Vectorize sync requires GitHub Actions mode; use --dry-run from local worktrees.",
@@ -142,14 +127,6 @@ export async function syncVectorize({
   const cloudflareClient = createCloudflareClient({
     accountId: ACECORE_CLOUDFLARE_ACCOUNT_ID,
     apiToken,
-    fetchImpl,
-    requestTimeoutMs,
-    retryBaseDelayMs,
-    sleepImpl,
-    randomImpl,
-  });
-  const openAiClient = createOpenAiClient({
-    apiKey: openAiApiKey.trim(),
     fetchImpl,
     requestTimeoutMs,
     retryBaseDelayMs,
@@ -194,7 +171,7 @@ export async function syncVectorize({
   const mutationIds = [];
   const vectorsToUpsert = [];
   for (const chunkBatch of batches(chunksToUpsert, EMBEDDING_BATCH_SIZE)) {
-    const embeddings = await createEmbeddings(openAiClient, chunkBatch);
+    const embeddings = await createEmbeddings(cloudflareClient, chunkBatch);
     vectorsToUpsert.push(
       ...chunkBatch.map((chunk, index) => ({
         id: chunk.id,
@@ -418,33 +395,37 @@ export function extractEmbeddingData(payload, expectedCount) {
 
   if (!Array.isArray(data) || data.length !== expectedCount) {
     throw new Error(
-      `OpenAI returned ${Array.isArray(data) ? data.length : 0} embeddings; expected ${expectedCount}.`,
+      `Workers AI returned ${Array.isArray(data) ? data.length : 0} embeddings; expected ${expectedCount}.`,
     );
   }
 
-  const orderedEmbeddings = Array(expectedCount);
-  const seenIndexes = new Set();
-  for (const item of data) {
-    const index = item?.index;
-    const values = item?.embedding;
-    if (
-      !Number.isInteger(index) ||
-      index < 0 ||
-      index >= expectedCount ||
-      seenIndexes.has(index) ||
-      !Array.isArray(values) ||
-      values.length !== SEARCH_EMBEDDING_DIMENSIONS ||
-      values.some((value) => !Number.isFinite(value))
-    ) {
-      throw new Error(
-        `OpenAI embedding must have a unique in-range index and contain ${SEARCH_EMBEDDING_DIMENSIONS} finite values.`,
-      );
-    }
-    seenIndexes.add(index);
-    orderedEmbeddings[index] = values;
+  if (payload.pooling !== undefined && payload.pooling !== "cls") {
+    throw new Error("Workers AI BGE-M3 must use cls pooling.");
+  }
+  if (
+    payload.shape !== undefined &&
+    (!Array.isArray(payload.shape) ||
+      payload.shape.length !== 2 ||
+      payload.shape[0] !== expectedCount ||
+      payload.shape[1] !== SEARCH_EMBEDDING_DIMENSIONS)
+  ) {
+    throw new Error("Workers AI BGE-M3 returned an invalid embedding shape.");
   }
 
-  return orderedEmbeddings;
+  return data.map((values) => {
+    if (
+      !Array.isArray(values) ||
+      values.length !== SEARCH_EMBEDDING_DIMENSIONS ||
+      values.some(
+        (value) => typeof value !== "number" || !Number.isFinite(value),
+      )
+    ) {
+      throw new Error(
+        `Workers AI embedding must contain ${SEARCH_EMBEDDING_DIMENSIONS} finite values.`,
+      );
+    }
+    return values;
+  });
 }
 
 function normalizeTarget(target) {
@@ -631,90 +612,6 @@ function createCloudflareClient({
   };
 }
 
-function createOpenAiClient({
-  apiKey,
-  fetchImpl,
-  requestTimeoutMs,
-  retryBaseDelayMs,
-  sleepImpl,
-  randomImpl,
-}) {
-  return {
-    async request(path, init = {}) {
-      const headers = new Headers(init.headers);
-      headers.set("Authorization", `Bearer ${apiKey}`);
-      headers.set("Accept", "application/json");
-
-      for (let attempt = 0; attempt <= MAX_REQUEST_RETRIES; attempt += 1) {
-        const timeoutController = new AbortController();
-        const timeout = setTimeout(
-          () => timeoutController.abort(new Error("Request timed out.")),
-          requestTimeoutMs,
-        );
-
-        try {
-          const response = await fetchImpl(`${OPENAI_API_BASE_URL}${path}`, {
-            ...init,
-            headers,
-            signal: timeoutController.signal,
-          });
-
-          if (
-            isRetryableStatus(response.status) &&
-            attempt < MAX_REQUEST_RETRIES
-          ) {
-            await response.body?.cancel().catch(() => {});
-            clearTimeout(timeout);
-            await sleepImpl(
-              getRetryDelay({
-                attempt,
-                retryAfter: response.headers.get("Retry-After"),
-                retryBaseDelayMs,
-                randomImpl,
-              }),
-            );
-            continue;
-          }
-
-          if (!response.ok) {
-            await response.body?.cancel().catch(() => {});
-            throw new OpenAiApiError(
-              `http_${response.status}`,
-              response.status,
-            );
-          }
-
-          return await readBoundedJsonResponse(
-            response,
-            MAX_OPENAI_RESPONSE_BYTES,
-            "OpenAI API",
-          );
-        } catch (error) {
-          if (
-            attempt >= MAX_REQUEST_RETRIES ||
-            !isRetryableNetworkError(error, timeoutController.signal.aborted)
-          ) {
-            throw error;
-          }
-
-          clearTimeout(timeout);
-          await sleepImpl(
-            getRetryDelay({
-              attempt,
-              retryBaseDelayMs,
-              randomImpl,
-            }),
-          );
-        } finally {
-          clearTimeout(timeout);
-        }
-      }
-
-      throw new Error("OpenAI API request exhausted all retries.");
-    },
-  };
-}
-
 function isRetryableStatus(status) {
   return status === 429 || status >= 500;
 }
@@ -856,20 +753,15 @@ async function listVectorIdsOnce(client, indexName) {
 }
 
 async function createEmbeddings(client, chunks) {
-  const payload = await client.request("/embeddings", {
+  const payload = await client.request(`/ai/run/${SEARCH_EMBEDDING_MODEL}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: SEARCH_EMBEDDING_MODEL,
-      input: chunks.map(({ text }) => text),
-      dimensions: SEARCH_EMBEDDING_DIMENSIONS,
-      encoding_format: "float",
+      text: chunks.map(({ text }) => text),
+      truncate_inputs: false,
     }),
   });
-  if (payload?.model !== SEARCH_EMBEDDING_MODEL) {
-    throw new Error(`OpenAI response model must be ${SEARCH_EMBEDDING_MODEL}.`);
-  }
-  return extractEmbeddingData(payload, chunks.length);
+  return extractEmbeddingData(payload?.result, chunks.length);
 }
 
 async function upsertVectors(client, indexName, vectors) {

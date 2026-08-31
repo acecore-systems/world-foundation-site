@@ -46,7 +46,7 @@ Cloudflare Vectorize is the primary search. When it returns valid local results,
 - Production uses the single Vectorize candidate index and its D1 rate-limit database.
 - Index writes are only performed by the protected Production synchronization workflow.
 - A non-blocking lower “Acecore関連サイト” / “Related Acecore sites” section calls `https://acecore.net/api/network-search` with only `{ query, locale: 'ja' }`. The central service derives the caller from `Origin`; the client excludes its own source and strictly accepts only official HTTPS allowlisted results.
-- If OpenAI, Vectorize, or D1 is unavailable, Pagefind continues to work.
+- If Workers AI, Vectorize, or D1 is unavailable, Pagefind continues to work.
 - Production semantic search is enabled after the 1,536-dimension candidate index converged at 135 vectors and passed Japanese and English namespace canaries. Root and Pages Preview remain disabled. A protected `main` push synchronizes the exact public build automatically. Delivered Cloudflare Pages Production check events can synchronize content-only Deploy Hook builds sooner, while a separate 15-minute reconciliation workflow covers missed events; manual Production dispatch remains the force-repair path.
 
 Starlight only mounts Pagefind and the related-content UI in a production build. Use a Pages preview or `wrangler pages dev` for rendered search QA; `astro dev` intentionally shows Starlight's development warning instead.

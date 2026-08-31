@@ -7,7 +7,7 @@ export const PRODUCTION_SYNC_ATTEMPT_ARTIFACT =
 export const PRODUCTION_SYNC_SUCCESS_ARTIFACT =
 	'world-foundation-vectorize-production-success-v2';
 export const PRODUCTION_VECTORIZE_INDEX =
-	'world-foundation-search-openai-1536-production';
+	'world-foundation-search-bge-m3-1024-production-v1';
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/i;
 const CORPUS_VERSION_PATTERN = /^[0-9a-f]{20}$/i;

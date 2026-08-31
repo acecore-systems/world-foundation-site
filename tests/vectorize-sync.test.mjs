@@ -16,10 +16,10 @@ import {
 	createSearchVectorId,
 } from '../scripts/search-contract.mjs';
 
-const PRODUCTION_INDEX = 'world-foundation-search-openai-1536-production';
-const OPENAI_EMBEDDINGS_ENDPOINT = 'https://api.openai.com/v1/embeddings';
+const PRODUCTION_INDEX = 'world-foundation-search-bge-m3-1024-production-v1';
+const WORKERS_AI_ENDPOINT = `https://api.cloudflare.com/client/v4/accounts/${ACECORE_CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/baai/bge-m3`;
 const temporaryRoots = [];
-const embedding = Array.from({ length: 1536 }, () => 0.01);
+const embedding = Array.from({ length: 1024 }, () => 0.01);
 
 after(async () => {
 	await Promise.all(
@@ -29,10 +29,10 @@ after(async () => {
 	);
 });
 
-test('OpenAI embeddingのindex・件数・1536次元・有限値を検証する', () => {
+test('Workers AI embeddingの件数・1024次元・有限値を検証する', () => {
 	assert.deepEqual(
 		extractEmbeddingData(
-			{ data: [{ index: 0, embedding }] },
+			{ data: [embedding], shape: [1, 1024], pooling: 'cls' },
 			1,
 		),
 		[embedding],
@@ -40,45 +40,25 @@ test('OpenAI embeddingのindex・件数・1536次元・有限値を検証する'
 	assert.deepEqual(
 		extractEmbeddingData(
 			{
-				data: [
-					{ index: 1, embedding: embedding.map(() => 0.02) },
-					{ index: 0, embedding },
-				],
+				data: [embedding, embedding.map(() => 0.02)],
+				shape: [2, 1024],
+				pooling: 'cls',
 			},
 			2,
 		),
 		[embedding, embedding.map(() => 0.02)],
 	);
-	assert.throws(
-		() =>
-			extractEmbeddingData(
-				{ data: [{ index: 0, embedding: [0.1] }] },
-				1,
-			),
-		/1536/,
-	);
+	assert.throws(() => extractEmbeddingData({ data: [[0.1]] }, 1), /1024/);
 	const invalid = [...embedding];
 	invalid[0] = Number.NaN;
+	assert.throws(() => extractEmbeddingData({ data: [invalid] }, 1), /finite/);
 	assert.throws(
 		() =>
 			extractEmbeddingData(
-				{ data: [{ index: 0, embedding: invalid }] },
-				1,
-			),
-		/finite/,
-	);
-	assert.throws(
-		() =>
-			extractEmbeddingData(
-				{
-					data: [
-						{ index: 0, embedding },
-						{ index: 0, embedding },
-					],
-				},
+				{ data: [embedding, embedding], shape: [1, 1024] },
 				2,
 			),
-		/unique in-range index/,
+		/invalid embedding shape/,
 	);
 });
 
@@ -212,16 +192,6 @@ test('Acecore account・production確認・corpus artifact identityをnetwork前
 	await assert.rejects(
 		syncVectorize({
 			...liveSyncOptions(corpus, corpusFile, {
-				openAiApiKey: '',
-			}),
-			fetchImpl,
-			logger: silentLogger,
-		}),
-		/OPENAI_API_KEY is required/,
-	);
-	await assert.rejects(
-		syncVectorize({
-			...liveSyncOptions(corpus, corpusFile, {
 				trustedAutomation: false,
 			}),
 			fetchImpl,
@@ -305,14 +275,10 @@ test('既存IDも全件再embed・upsertして同一ID破損を修復し、mutat
 				isTruncated: false,
 			});
 		}
-		if (url === OPENAI_EMBEDDINGS_ENDPOINT) {
+		if (url === WORKERS_AI_ENDPOINT) {
 			const body = JSON.parse(init.body);
-			assert.equal(body.model, 'text-embedding-3-large');
-			assert.equal(body.dimensions, 1536);
-			assert.equal(body.encoding_format, 'float');
-			return openAiResponse(
-				body.input.map((_text, index) => ({ index, embedding })),
-			);
+			assert.equal(body.truncate_inputs, false);
+			return workersAiResponse(body.text.map(() => embedding));
 		}
 		if (url.endsWith('/upsert')) {
 			const body = await init.body.get('vectors').text();
@@ -322,7 +288,7 @@ test('既存IDも全件再embed・upsertして同一ID破損を修復し、mutat
 				.map((line) => JSON.parse(line));
 			assert.equal(vectors.length, corpus.vectorCount);
 			const vector = vectors.find(({ id }) => id === newChunk.id);
-			assert.equal(vector.values.length, 1536);
+			assert.equal(vector.values.length, 1024);
 			assert.equal(vector.namespace, newChunk.namespace);
 			return cloudflareResponse({ mutationId: 'mutation-upsert' });
 		}
@@ -353,17 +319,17 @@ test('既存IDも全件再embed・upsertして同一ID破損を修復し、mutat
 	assert.equal(result.verifiedVectorCount, corpus.vectorCount);
 	assert.equal(listCalls, 2);
 	assert.equal(
-		calls.filter(({ url }) => url === OPENAI_EMBEDDINGS_ENDPOINT).length,
-		3,
+		calls.filter(({ url }) => url === WORKERS_AI_ENDPOINT).length,
+		5,
 	);
 	assert.ok(
 		calls
-			.filter(({ url }) => url === OPENAI_EMBEDDINGS_ENDPOINT)
-			.every(({ authorization }) => authorization === 'Bearer openai-key'),
+			.filter(({ url }) => url === WORKERS_AI_ENDPOINT)
+			.every(({ authorization }) => authorization === 'Bearer token'),
 	);
 	assert.ok(
 		calls
-			.filter(({ url }) => url !== OPENAI_EMBEDDINGS_ENDPOINT)
+			.filter(({ url }) => url !== WORKERS_AI_ENDPOINT)
 			.every(({ authorization }) => authorization === 'Bearer token'),
 	);
 	assert.ok(
@@ -373,7 +339,7 @@ test('既存IDも全件再embed・upsertして同一ID破損を修復し、mutat
 	);
 });
 
-test('embeddingを32件、HTTP upsertを200件以下に分割する', async () => {
+test('embeddingを16件、HTTP upsertを200件以下に分割する', async () => {
 	const corpus = createCorpus({ vectorCount: 201, japaneseCount: 150 });
 	const corpusFile = await writeCorpus(corpus);
 	const embeddingBatchSizes = [];
@@ -404,15 +370,10 @@ test('embeddingを32件、HTTP upsertを200件以下に分割する', async () =
 				isTruncated: false,
 			});
 		}
-		if (url === OPENAI_EMBEDDINGS_ENDPOINT) {
-			const count = JSON.parse(init.body).input.length;
+		if (url === WORKERS_AI_ENDPOINT) {
+			const count = JSON.parse(init.body).text.length;
 			embeddingBatchSizes.push(count);
-			return openAiResponse(
-				Array.from({ length: count }, (_value, index) => ({
-					index,
-					embedding,
-				})),
-			);
+			return workersAiResponse(Array.from({ length: count }, () => embedding));
 		}
 		if (url.endsWith('/upsert')) {
 			const body = await init.body.get('vectors').text();
@@ -438,7 +399,10 @@ test('embeddingを32件、HTTP upsertを200件以下に分割する', async () =
 		logger: silentLogger,
 	});
 
-	assert.deepEqual(embeddingBatchSizes, [32, 32, 32, 32, 32, 32, 9]);
+	assert.deepEqual(
+		embeddingBatchSizes,
+		[16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 9],
+	);
 	assert.deepEqual(upsertBatchSizes, [200, 1]);
 	assert.equal(result.upserted, 201);
 	assert.equal(result.mutationId, 'mutation-upsert-2');
@@ -464,15 +428,10 @@ test('同じcorpusの再同期でも全件を修復upsertする', async () => {
 				isTruncated: false,
 			});
 		}
-		if (url === OPENAI_EMBEDDINGS_ENDPOINT) {
-			const count = JSON.parse(init.body).input.length;
+		if (url === WORKERS_AI_ENDPOINT) {
+			const count = JSON.parse(init.body).text.length;
 			embeddingCount += count;
-			return openAiResponse(
-				Array.from({ length: count }, (_value, index) => ({
-					index,
-					embedding,
-				})),
-			);
+			return workersAiResponse(Array.from({ length: count }, () => embedding));
 		}
 		if (url.endsWith('/upsert')) {
 			upsertCount += 1;
@@ -535,14 +494,9 @@ test('20%を超えるdeleteを既定で拒否し明示override時だけ許可す
 			assert.deepEqual(JSON.parse(init.body), { ids: staleIds });
 			return cloudflareResponse({ mutationId: 'mutation-delete' });
 		}
-		if (url === OPENAI_EMBEDDINGS_ENDPOINT) {
-			const count = JSON.parse(init.body).input.length;
-			return openAiResponse(
-				Array.from({ length: count }, (_value, index) => ({
-					index,
-					embedding,
-				})),
-			);
+		if (url === WORKERS_AI_ENDPOINT) {
+			const count = JSON.parse(init.body).text.length;
+			return workersAiResponse(Array.from({ length: count }, () => embedding));
 		}
 		if (url.endsWith('/upsert')) {
 			return cloudflareResponse({ mutationId: 'mutation-upsert' });
@@ -624,14 +578,9 @@ test('mutation後に余計な並行IDが残れば厳密収束をtimeoutで拒否
 				isTruncated: false,
 			});
 		}
-		if (url === OPENAI_EMBEDDINGS_ENDPOINT) {
-			const count = JSON.parse(init.body).input.length;
-			return openAiResponse(
-				Array.from({ length: count }, (_value, index) => ({
-					index,
-					embedding,
-				})),
-			);
+		if (url === WORKERS_AI_ENDPOINT) {
+			const count = JSON.parse(init.body).text.length;
+			return workersAiResponse(Array.from({ length: count }, () => embedding));
 		}
 		if (url.endsWith('/upsert')) {
 			return cloudflareResponse({ mutationId: 'mutation-upsert' });
@@ -736,8 +685,8 @@ function createCorpus({ vectorCount = 80, japaneseCount = 55 } = {}) {
 		siteCommit,
 		contentCommit,
 		embedding: {
-			model: 'text-embedding-3-large',
-			dimensions: 1536,
+			model: '@cf/baai/bge-m3',
+			dimensions: 1024,
 			metric: 'cosine',
 		},
 		chunking: {
@@ -756,7 +705,6 @@ function liveSyncOptions(corpus, corpusFile, overrides = {}) {
 	return {
 		accountId: ACECORE_CLOUDFLARE_ACCOUNT_ID,
 		apiToken: 'token',
-		openAiApiKey: 'openai-key',
 		trustedAutomation: true,
 		target: 'production',
 		confirmProduction: corpus.version,
@@ -792,17 +740,21 @@ async function writeCorpus(corpus) {
 function indexResponse() {
 	return cloudflareResponse({
 		name: PRODUCTION_INDEX,
-		config: { dimensions: 1536, metric: 'cosine' },
+		config: { dimensions: 1024, metric: 'cosine' },
 	});
 }
 
-function openAiResponse(data, status = 200, headers = {}) {
+function workersAiResponse(data, status = 200, headers = {}) {
 	return new Response(
 		JSON.stringify({
-			object: 'list',
-			data,
-			model: 'text-embedding-3-large',
-			usage: { prompt_tokens: data.length, total_tokens: data.length },
+			success: status >= 200 && status < 300,
+			result: {
+				data,
+				shape: [data.length, 1024],
+				pooling: 'cls',
+			},
+			errors: [],
+			messages: [],
 		}),
 		{
 			status,
