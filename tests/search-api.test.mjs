@@ -1,58 +1,14 @@
 import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 
 import { onRequestPost } from "../functions/api/search.ts";
 
 const SITE_ORIGIN = "https://world-foundation-site.pages.dev";
 const CLIENT_ID = "018f7e5a-7b4d-7c6a-8e9f-0123456789ab";
-const OPENAI_EMBEDDINGS_ENDPOINT = "https://api.openai.com/v1/embeddings";
-const queryVector = Array.from({ length: 1536 }, () => 0.01);
-const openAiProviderMocks = new Map();
-let providerSequence = 0;
-let originalFetch;
-
-before(() => {
-  originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input, init = {}) => {
-    const url = String(input);
-    assert.equal(url, OPENAI_EMBEDDINGS_ENDPOINT);
-
-    const headers = new Headers(init.headers);
-    const authorization = headers.get("Authorization");
-    assert.match(authorization || "", /^Bearer test-openai-key-\d+$/);
-    const apiKey = authorization.slice("Bearer ".length);
-    const provider = openAiProviderMocks.get(apiKey);
-    assert.ok(provider, "OpenAI mock must be registered for the API key");
-
-    const body = JSON.parse(String(init.body));
-    provider.onOpenAiRequest({ url, init, headers, body });
-    if (provider.openAiError) throw provider.openAiError;
-
-    const payload = provider.openAiPayload ?? {
-      object: "list",
-      data: [
-        {
-          object: "embedding",
-          index: 0,
-          embedding: provider.embedding,
-        },
-      ],
-      model: "text-embedding-3-large",
-      usage: { prompt_tokens: 1, total_tokens: 1 },
-    };
-    return new Response(JSON.stringify(payload), {
-      status: provider.openAiStatus,
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-});
-
-after(() => {
-  globalThis.fetch = originalFetch;
-});
+const queryVector = Array.from({ length: 1024 }, () => 0.01);
 
 test("同一originのJSON検索をlocale namespaceで実行し、安全な上位5件だけ返す", async () => {
-  let openAiRequest;
+  let aiRequest;
   let queryOptions;
   const env = createEnv({
     matches: [
@@ -89,8 +45,8 @@ test("同一originのJSON検索をlocale namespaceで実行し、安全な上位
       searchMatch("too-low", 0.39, "/research/", "ja"),
     ],
     searchMinScore: undefined,
-    onOpenAiRequest(request) {
-      openAiRequest = request;
+    onAiRequest(request) {
+      aiRequest = request;
     },
     onQuery(_values, options) {
       queryOptions = options;
@@ -128,18 +84,13 @@ test("同一originのJSON検索をlocale namespaceで実行し、安全な上位
       { id: "five", url: "/docs/04-non-goals/", rank: 5 },
     ],
   );
-  assert.equal(openAiRequest.url, OPENAI_EMBEDDINGS_ENDPOINT);
-  assert.equal(
-    openAiRequest.headers.get("Authorization"),
-    `Bearer ${env.OPENAI_API_KEY}`,
-  );
-  assert.deepEqual(openAiRequest.body, {
-    model: "text-embedding-3-large",
-    input: ["世界の 協力モデル"],
-    dimensions: 1536,
-    encoding_format: "float",
+  assert.deepEqual(aiRequest, {
+    model: "@cf/baai/bge-m3",
+    input: {
+      text: ["世界の 協力モデル"],
+      truncate_inputs: false,
+    },
   });
-  assert.equal(openAiRequest.init.signal instanceof AbortSignal, true);
   assert.deepEqual(queryOptions, {
     namespace: "ja",
     topK: 15,
@@ -170,11 +121,11 @@ test("英語localeと設定したscore thresholdを適用する", async () => {
   );
 });
 
-test("Originなし・別OriginのrequestをOpenAIの前で403にする", async () => {
-  let openAiCalls = 0;
+test("Originなし・別OriginのrequestをWorkers AIの前で403にする", async () => {
+  let aiCalls = 0;
   const env = createEnv({
-    onOpenAiRequest() {
-      openAiCalls += 1;
+    onAiRequest() {
+      aiCalls += 1;
     },
   });
   const noOrigin = new Request(`${SITE_ORIGIN}/api/search`, {
@@ -197,7 +148,7 @@ test("Originなし・別OriginのrequestをOpenAIの前で403にする", async (
     403,
     "forbidden",
   );
-  assert.equal(openAiCalls, 0);
+  assert.equal(aiCalls, 0);
 });
 
 test("application/json以外を415にし、無効化・binding不足を503にする", async () => {
@@ -233,19 +184,19 @@ test("application/json以外を415にし、無効化・binding不足を503にす
     "unavailable",
   );
 
-  const missingOpenAiKeyEnv = createEnv();
-  delete missingOpenAiKeyEnv.OPENAI_API_KEY;
+  const missingAiBindingEnv = createEnv();
+  delete missingAiBindingEnv.AI;
   await assertError(
     onRequestPost({
       request: searchRequest({ query: "検索", locale: "ja" }),
-      env: missingOpenAiKeyEnv,
+      env: missingAiBindingEnv,
     }),
     503,
     "unavailable",
   );
 
   const staleEmbeddingContractEnv = createEnv();
-  staleEmbeddingContractEnv.OPENAI_EMBEDDING_DIMENSIONS = "3072";
+  staleEmbeddingContractEnv.SEARCH_EMBEDDING_DIMENSIONS = "1536";
   await assertError(
     onRequestPost({
       request: searchRequest({ query: "検索", locale: "ja" }),
@@ -485,13 +436,13 @@ test("global拒否後はcleanupもcaller別row作成もせず、D1障害はfail 
   );
 });
 
-test("request中止をOpenAIへ伝播し、Vectorize queryを実行しない", async () => {
+test("Workers AI実行中のrequest中止後はVectorize queryを実行しない", async () => {
   const controller = new AbortController();
-  let openAiSignal;
+  let aiCalled = false;
   let vectorCalls = 0;
   const env = createEnv({
-    onOpenAiRequest({ init }) {
-      openAiSignal = init.signal;
+    onAiRequest() {
+      aiCalled = true;
       controller.abort();
     },
     onQuery() {
@@ -505,8 +456,7 @@ test("request中止をOpenAIへ伝播し、Vectorize queryを実行しない", a
   );
 
   await assertError(onRequestPost({ request, env }), 499, "request_cancelled");
-  assert.equal(openAiSignal instanceof AbortSignal, true);
-  assert.equal(openAiSignal.aborted, true);
+  assert.equal(aiCalled, true);
   assert.equal(request.signal.aborted, true);
   assert.equal(vectorCalls, 0);
 });
@@ -530,11 +480,11 @@ test("embedding・Vectorizeの障害と不正responseを502にし、query本文�
       "provider_error",
     );
 
-    const wrongModelEnv = createEnv({
-      openAiPayload: {
-        object: "list",
-        data: [{ object: "embedding", index: 0, embedding: queryVector }],
-        model: "text-embedding-3-small",
+    const wrongContractEnv = createEnv({
+      aiPayload: {
+        data: [queryVector],
+        shape: [1, 1024],
+        pooling: "mean",
       },
     });
     await assertError(
@@ -543,7 +493,7 @@ test("embedding・Vectorizeの障害と不正responseを502にし、query本文�
           query: "modelが違う秘密の検索テキスト",
           locale: "ja",
         }),
-        env: wrongModelEnv,
+        env: wrongContractEnv,
       }),
       502,
       "provider_error",
@@ -624,27 +574,29 @@ function createEnv({
   globalRateLimitSuccess = true,
   rateLimitError,
   vectorError,
-  openAiError,
-  openAiPayload,
-  openAiStatus = 200,
-  onOpenAiRequest = () => {},
+  aiError,
+  aiPayload,
+  onAiRequest = () => {},
   onQuery = () => {},
   onCleanup = () => {},
   onRateLimit = () => {},
 } = {}) {
-  const openAiApiKey = `test-openai-key-${++providerSequence}`;
-  openAiProviderMocks.set(openAiApiKey, {
-    embedding,
-    onOpenAiRequest,
-    openAiError,
-    openAiPayload,
-    openAiStatus,
-  });
-
   return {
-    OPENAI_API_KEY: openAiApiKey,
-    OPENAI_EMBEDDING_MODEL: "text-embedding-3-large",
-    OPENAI_EMBEDDING_DIMENSIONS: "1536",
+    AI: {
+      async run(model, input) {
+        onAiRequest({ model, input });
+        if (aiError) throw aiError;
+        return (
+          aiPayload ?? {
+            data: [embedding],
+            shape: [1, 1024],
+            pooling: "cls",
+          }
+        );
+      },
+    },
+    SEARCH_EMBEDDING_MODEL: "@cf/baai/bge-m3",
+    SEARCH_EMBEDDING_DIMENSIONS: "1024",
     SEARCH_ENABLED: "true",
     SEARCH_MIN_SCORE: searchMinScore,
     SEARCH_RATE_LIMIT_DB: createRateLimitDatabase({
@@ -657,7 +609,7 @@ function createEnv({
     SEARCH_INDEX: {
       async query(values, options) {
         if (vectorError) throw vectorError;
-        assert.equal(values.length, 1536);
+        assert.equal(values.length, 1024);
         onQuery(values, options);
         return queryResult ?? { count: matches.length, matches };
       },

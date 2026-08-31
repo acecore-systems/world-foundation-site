@@ -1,10 +1,7 @@
 import { getSafeInternalUrl } from "../../src/scripts/search-url-safety.ts";
 
-const EMBEDDING_MODEL = "text-embedding-3-large";
-const EMBEDDING_DIMENSIONS = 1536;
-const OPENAI_EMBEDDINGS_ENDPOINT = "https://api.openai.com/v1/embeddings";
-const OPENAI_TIMEOUT_MS = 8_000;
-const MAX_OPENAI_RESPONSE_BYTES = 256 * 1024;
+const EMBEDDING_MODEL = "@cf/baai/bge-m3";
+const EMBEDDING_DIMENSIONS = 1024;
 const DEFAULT_MIN_SCORE = 0.4;
 const MAX_REQUEST_BYTES = 2048;
 const MIN_QUERY_LENGTH = 2;
@@ -24,9 +21,9 @@ const ERROR_CODE_PATTERN = /^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/;
 const SUPPORTED_LOCALES = new Set(["ja", "en"]);
 
 export type SemanticSearchEnv = {
-  OPENAI_API_KEY?: string;
-  OPENAI_EMBEDDING_MODEL?: string;
-  OPENAI_EMBEDDING_DIMENSIONS?: string;
+  AI?: Ai;
+  SEARCH_EMBEDDING_MODEL?: string;
+  SEARCH_EMBEDDING_DIMENSIONS?: string;
   SEARCH_INDEX?: Vectorize;
   SEARCH_RATE_LIMIT_DB?: D1Database;
   SEARCH_ENABLED?: string;
@@ -83,16 +80,14 @@ export const onRequestPost: PagesFunction<SemanticSearchEnv> = async ({
       return errorResponse("unsupported_media_type", 415, requestId, startedAt);
     }
 
-    const { OPENAI_API_KEY, SEARCH_INDEX, SEARCH_RATE_LIMIT_DB } = env;
-    const openAiApiKey =
-      typeof OPENAI_API_KEY === "string" ? OPENAI_API_KEY.trim() : "";
-    const embeddingModel = env.OPENAI_EMBEDDING_MODEL || EMBEDDING_MODEL;
+    const { AI, SEARCH_INDEX, SEARCH_RATE_LIMIT_DB } = env;
+    const embeddingModel = env.SEARCH_EMBEDDING_MODEL || EMBEDDING_MODEL;
     const embeddingDimensions = Number(
-      env.OPENAI_EMBEDDING_DIMENSIONS || EMBEDDING_DIMENSIONS,
+      env.SEARCH_EMBEDDING_DIMENSIONS || EMBEDDING_DIMENSIONS,
     );
     if (
       env.SEARCH_ENABLED !== "true" ||
-      !openAiApiKey ||
+      !AI ||
       embeddingModel !== EMBEDDING_MODEL ||
       embeddingDimensions !== EMBEDDING_DIMENSIONS ||
       !SEARCH_INDEX ||
@@ -161,15 +156,9 @@ export const onRequestPost: PagesFunction<SemanticSearchEnv> = async ({
 
     let embedding: number[];
     try {
-      embedding = await createOpenAiEmbedding({
-        apiKey: openAiApiKey,
-        query,
-        model: embeddingModel,
-        dimensions: embeddingDimensions,
-        requestSignal: request.signal,
-      });
+      embedding = await createWorkersAiEmbedding(AI, query, request.signal);
     } catch (error) {
-      if (request.signal.aborted) {
+      if (request.signal.aborted || isAbortError(error)) {
         return errorResponse("request_cancelled", 499, requestId, startedAt);
       }
       logSearchError(
@@ -393,173 +382,53 @@ function normalizeMinScore(value: string | undefined): number {
     : DEFAULT_MIN_SCORE;
 }
 
-async function createOpenAiEmbedding({
-  apiKey,
-  query,
-  model,
-  dimensions,
-  requestSignal,
-}: {
-  apiKey: string;
-  query: string;
-  model: string;
-  dimensions: number;
-  requestSignal: AbortSignal;
-}): Promise<number[]> {
-  const requestController = new AbortController();
-  let timedOut = false;
-  const abortFromRequest = () => requestController.abort(requestSignal.reason);
+async function createWorkersAiEmbedding(
+  ai: Ai,
+  query: string,
+  requestSignal: AbortSignal,
+): Promise<number[]> {
   if (requestSignal.aborted) {
-    abortFromRequest();
-  } else {
-    requestSignal.addEventListener("abort", abortFromRequest, { once: true });
+    throw new DOMException("Request cancelled.", "AbortError");
   }
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    requestController.abort();
-  }, OPENAI_TIMEOUT_MS);
-
+  let payload: unknown;
   try {
-    let response: Response;
-    try {
-      response = await fetch(OPENAI_EMBEDDINGS_ENDPOINT, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          input: [query],
-          dimensions,
-          encoding_format: "float",
-        }),
-        signal: requestController.signal,
-      });
-    } catch (error) {
-      if (requestSignal.aborted) throw error;
-      throw new EmbeddingProviderError(
-        timedOut || isAbortError(error) ? "timeout" : "network_error",
-      );
-    }
-
-    if (requestSignal.aborted) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new DOMException("Request cancelled.", "AbortError");
-    }
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new EmbeddingProviderError(`http_${response.status}`);
-    }
-
-    let payload: unknown;
-    try {
-      payload = await readBoundedOpenAiJson(response);
-    } catch (error) {
-      if (requestSignal.aborted) throw error;
-      if (timedOut || isAbortError(error)) {
-        throw new EmbeddingProviderError("timeout");
-      }
-      throw error;
-    }
-    const embedding = extractOpenAiEmbedding(payload, dimensions);
-    if (!embedding) {
-      throw new EmbeddingProviderError("invalid_embedding");
-    }
-    return embedding;
-  } finally {
-    clearTimeout(timeout);
-    requestSignal.removeEventListener("abort", abortFromRequest);
+    payload = await ai.run(EMBEDDING_MODEL, {
+      text: [query],
+      truncate_inputs: false,
+    });
+  } catch (error) {
+    throw new EmbeddingProviderError(getErrorCode(error, "provider_error"));
   }
-}
-
-async function readBoundedOpenAiJson(response: Response): Promise<unknown> {
-  const text = await readBoundedResponseText(
-    response,
-    MAX_OPENAI_RESPONSE_BYTES,
-  );
-  if (text === null) {
-    throw new EmbeddingProviderError("response_too_large");
+  if (requestSignal.aborted) {
+    throw new DOMException("Request cancelled.", "AbortError");
   }
-
-  try {
-    return JSON.parse(text);
-  } catch {
+  if (
+    !isJsonObject(payload) ||
+    !Array.isArray(payload.data) ||
+    payload.data.length !== 1 ||
+    !Array.isArray(payload.data[0])
+  ) {
     throw new EmbeddingProviderError("invalid_json");
   }
-}
-
-async function readBoundedResponseText(
-  response: Response,
-  maxBytes: number,
-): Promise<string | null> {
-  const declaredLength = response.headers.get("Content-Length");
-  if (declaredLength !== null) {
-    const normalizedLength = declaredLength.trim();
-    if (!/^\d+$/u.test(normalizedLength)) {
-      await response.body?.cancel().catch(() => undefined);
-      return null;
-    }
-
-    const length = Number(normalizedLength);
-    if (!Number.isSafeInteger(length) || length > maxBytes) {
-      await response.body?.cancel().catch(() => undefined);
-      return null;
-    }
-  }
-
-  if (!response.body) return "";
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let byteLength = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      byteLength += value.byteLength;
-      if (byteLength > maxBytes) {
-        await reader.cancel("response body too large").catch(() => undefined);
-        return null;
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(byteLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(body);
-}
-
-function extractOpenAiEmbedding(
-  result: unknown,
-  dimensions: number,
-): number[] | null {
-  if (!isJsonObject(result) || result.model !== EMBEDDING_MODEL) return null;
-  const data = result.data;
-  if (!Array.isArray(data) || data.length !== 1 || !isJsonObject(data[0])) {
-    return null;
-  }
-  if (data[0].index !== 0 || !Array.isArray(data[0].embedding)) return null;
-
-  const values = data[0].embedding;
+  const values = payload.data[0];
   if (
-    values.length !== dimensions ||
+    values.length !== EMBEDDING_DIMENSIONS ||
     !values.every(
       (value): value is number =>
         typeof value === "number" && Number.isFinite(value),
     )
   ) {
-    return null;
+    throw new EmbeddingProviderError("invalid_embedding");
+  }
+  if (
+    (payload.pooling !== undefined && payload.pooling !== "cls") ||
+    (payload.shape !== undefined &&
+      (!Array.isArray(payload.shape) ||
+        payload.shape.length !== 2 ||
+        payload.shape[0] !== 1 ||
+        payload.shape[1] !== EMBEDDING_DIMENSIONS))
+  ) {
+    throw new EmbeddingProviderError("invalid_embedding_contract");
   }
   return values;
 }

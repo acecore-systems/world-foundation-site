@@ -177,14 +177,10 @@ test('Production mutationを直列化し、attempt/success stateで重複と失�
 	const token = productionJobs.indexOf(
 		'CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN',
 	);
-	const openAiKey = productionJobs.indexOf(
-		'OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}',
-	);
 
 	assert.ok(recheck >= 0 && recheck < attempt);
 	assert.ok(attempt < mutation);
 	assert.ok(recheck < token);
-	assert.ok(recheck < openAiKey);
 	assert.ok(mutation < finalAssert);
 	assert.ok(finalAssert < success);
 });
@@ -205,15 +201,10 @@ test('長期preview branch固有jobを持たず、PR検証はsecretを使わな�
 	assert.doesNotMatch(pullRequestJob, /OPENAI_API_KEY/u);
 });
 
-test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡す', async () => {
+test('Workers AIとVectorize用Cloudflare tokenをProduction同期stepだけへ渡す', async () => {
 	const workflow = await readFile(workflowUrl, 'utf8');
 
-	assert.equal(
-		workflow.match(
-			/OPENAI_API_KEY: \$\{\{ secrets\.OPENAI_API_KEY \}\}/gu,
-		)?.length,
-		1,
-	);
+	assert.doesNotMatch(workflow, /OPENAI_API_KEY/u);
 	assert.equal(
 		workflow.match(
 			/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN \}\}/gu,
@@ -221,7 +212,6 @@ test('OpenAI keyとCloudflare Vectorize tokenをProduction同期stepだけへ渡
 		1,
 	);
 	assert.doesNotMatch(workflow, /CLOUDFLARE_SEARCH_PREVIEW_API_TOKEN/u);
-	assert.doesNotMatch(workflow, /Workers AI Read/u);
 });
 
 test('main向けPRは最新main由来の同一repository branchだけを許可する', async () => {
@@ -265,13 +255,13 @@ test('PreviewはVectorize bindingなし、収束後はProductionだけ意味検�
 
 	assert.equal(
 		config.match(
-			/"index_name": "world-foundation-search-openai-1536-production"/gu,
+			/"index_name": "world-foundation-search-bge-m3-1024-production-v1"/gu,
 		)?.length,
 		1,
 	);
 	assert.doesNotMatch(
 		config,
-		/world-foundation-search-openai-1536-preview/u,
+		/world-foundation-search-bge-m3-1024-preview/u,
 	);
 	assert.equal(parsedConfig.vars.SEARCH_ENABLED, 'false');
 	assert.equal(parsedConfig.env.preview.vars.SEARCH_ENABLED, 'false');

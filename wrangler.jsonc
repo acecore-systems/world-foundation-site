@@ -13,8 +13,8 @@
     },
   ],
   "vars": {
-    "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
-    "OPENAI_EMBEDDING_DIMENSIONS": "1536",
+    "SEARCH_EMBEDDING_MODEL": "@cf/baai/bge-m3",
+    "SEARCH_EMBEDDING_DIMENSIONS": "1024",
     "SEARCH_ENABLED": "false",
     "SEARCH_MIN_SCORE": "0.40",
   },
@@ -29,17 +29,20 @@
         },
       ],
       "vars": {
-        "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
-        "OPENAI_EMBEDDING_DIMENSIONS": "1536",
+        "SEARCH_EMBEDDING_MODEL": "@cf/baai/bge-m3",
+        "SEARCH_EMBEDDING_DIMENSIONS": "1024",
         "SEARCH_ENABLED": "false",
         "SEARCH_MIN_SCORE": "0.40",
       },
     },
     "production": {
+      "ai": {
+        "binding": "AI",
+      },
       "vectorize": [
         {
           "binding": "SEARCH_INDEX",
-          "index_name": "world-foundation-search-openai-1536-production",
+          "index_name": "world-foundation-search-bge-m3-1024-production-v1",
           "remote": true,
         },
       ],
@@ -52,8 +55,8 @@
         },
       ],
       "vars": {
-        "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
-        "OPENAI_EMBEDDING_DIMENSIONS": "1536",
+        "SEARCH_EMBEDDING_MODEL": "@cf/baai/bge-m3",
+        "SEARCH_EMBEDDING_DIMENSIONS": "1024",
         "SEARCH_ENABLED": "true",
         "SEARCH_MIN_SCORE": "0.40",
       },
