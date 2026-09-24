@@ -36,6 +36,7 @@ export default defineConfig({
 				},
 			],
 			components: {
+				Head: './src/components/SeoHead.astro',
 				Search: './src/components/Search.astro',
 			},
 			sidebar: [
