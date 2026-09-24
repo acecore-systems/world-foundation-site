@@ -1,0 +1,35 @@
+---
+import manifest from '../../.vectorize/content-manifest.json';
+
+const { head } = Astro.locals.starlightRoute;
+const fallbackCanonicalPaths = new Map(
+	manifest.routes
+		.filter((route) => route.canonicalPath)
+		.map((route) => [route.url, route.canonicalPath]),
+);
+const canonicalPath = fallbackCanonicalPaths.get(Astro.url.pathname);
+const canonicalUrl = canonicalPath ? new URL(canonicalPath, Astro.site).href : undefined;
+
+const seoHead = head.flatMap(({ tag, attrs, content }) => {
+	if (
+		tag === 'link' &&
+		attrs?.rel === 'alternate' &&
+		attrs?.hreflang === 'en' &&
+		fallbackCanonicalPaths.has(new URL(attrs.href, Astro.site).pathname)
+	) {
+		return [];
+	}
+
+	if (canonicalUrl && tag === 'link' && attrs?.rel === 'canonical') {
+		return [{ tag, attrs: { ...attrs, href: canonicalUrl }, content }];
+	}
+
+	if (canonicalUrl && tag === 'meta' && attrs?.property === 'og:url') {
+		return [{ tag, attrs: { ...attrs, content: canonicalUrl }, content }];
+	}
+
+	return [{ tag, attrs, content }];
+});
+---
+
+{seoHead.map(({ tag: Tag, attrs, content }) => <Tag {...attrs} set:html={content} />)}

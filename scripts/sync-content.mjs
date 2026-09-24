@@ -394,6 +394,9 @@ await writeFile(
 				url: toSiteLink(page.dest, ''),
 				locale: page.lang,
 				searchable: isSearchablePage(page, index),
+				...(isUntranslatedEnglishPage(page)
+					? { canonicalPath: toSiteLink(page.dest.replace(/^en\//, ''), '') }
+					: {}),
 			})),
 		},
 		null,
@@ -569,7 +572,7 @@ function normalizeBasePath(basePath) {
 
 function isSearchablePage(page, pageIndex) {
 	const source = normalize(page.src);
-	if (page.lang === 'en' && !source.includes('/en/')) return false;
+	if (isUntranslatedEnglishPage(page)) return false;
 
 	return (
 		pages.findIndex(
@@ -577,6 +580,10 @@ function isSearchablePage(page, pageIndex) {
 				candidate.lang === page.lang && normalize(candidate.src) === source,
 		) === pageIndex
 	);
+}
+
+function isUntranslatedEnglishPage(page) {
+	return page.lang === 'en' && !normalize(page.src).includes('/en/');
 }
 
 async function resolveContentCommit(repositoryRoot) {
