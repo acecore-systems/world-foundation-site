@@ -8,7 +8,7 @@ export default defineConfig({
 	vite: {
 		plugins: [tailwindcss()],
 	},
-	site: 'https://world-foundation-site.pages.dev',
+	site: 'https://world-foundation.acecore.net',
 	integrations: [
 		mermaid(),
 		starlight({

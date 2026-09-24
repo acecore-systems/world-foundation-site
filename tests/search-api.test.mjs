@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { onRequestPost } from "../functions/api/search.ts";
 
-const SITE_ORIGIN = "https://world-foundation-site.pages.dev";
+const SITE_ORIGIN = "https://world-foundation.acecore.net";
 const CLIENT_ID = "018f7e5a-7b4d-7c6a-8e9f-0123456789ab";
 const queryVector = Array.from({ length: 1024 }, () => 0.01);
 
