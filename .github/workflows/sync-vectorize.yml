@@ -165,9 +165,9 @@ jobs:
           WORLD_FOUNDATION_SOURCE: ${{ github.workspace }}/content
         run: npm run build
 
-      - name: Run semantic search tests
+      - name: Run search and SEO tests
         working-directory: site
-        run: npm run test:search
+        run: npm run test:search && npm run test:seo
 
       - name: Verify generated Cloudflare types
         working-directory: site
@@ -559,9 +559,9 @@ jobs:
           WORLD_FOUNDATION_SOURCE: ${{ github.workspace }}/content
         run: npm run build
 
-      - name: Run semantic search tests
+      - name: Run search and SEO tests
         working-directory: site
-        run: npm run test:search
+        run: npm run test:search && npm run test:seo
 
       - name: Verify generated Cloudflare types
         working-directory: site

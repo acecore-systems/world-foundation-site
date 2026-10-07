@@ -35,7 +35,7 @@ WORLD_FOUNDATION_SOURCE=/path/to/world-foundation npm run dev
 npm run build
 ```
 
-The build script runs `scripts/sync-content.mjs` first. Generated pages are written to `src/content/docs/` and should not be edited by hand. It also generates the deterministic Vectorize corpus and the public site/content build marker after Astro finishes.
+The build script runs `scripts/sync-content.mjs` first. Generated pages are written to `src/content/docs/` and should not be edited by hand. After Astro finishes, the build removes untranslated fallback URLs from the sitemap, validates canonical URLs, indexing directives, language alternates, and the sitemap declaration in `robots.txt`, then generates the deterministic Vectorize corpus and the public site/content build marker. Run `npm run validate:seo` to repeat the SEO checks against an existing build.
 
 ## Search
 
