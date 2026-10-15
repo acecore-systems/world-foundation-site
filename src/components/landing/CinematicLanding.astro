@@ -285,6 +285,52 @@ const timelineMarkers = [
 	</main>
 </div>
 
+<footer class="corporate-context" aria-labelledby="corporate-context-title">
+	<div class="corporate-context__inner">
+		<h2 id="corporate-context-title">{copy.corporate.title}</h2>
+		<p>{copy.corporate.body}</p>
+		<p>{copy.corporate.status}</p>
+		<a href={copy.corporate.href}
+			>{copy.corporate.link}<span aria-hidden="true"> →</span></a
+		>
+	</div>
+</footer>
+
+<style>
+	.corporate-context {
+		padding: 3rem max(1.5rem, env(safe-area-inset-right)) 3rem
+			max(1.5rem, env(safe-area-inset-left));
+		border-top: 1px solid #405253;
+		background: #071015;
+		color: #e2e8e3;
+		font-family: 'Noto Sans JP', sans-serif;
+	}
+	.corporate-context__inner {
+		max-width: 64rem;
+		margin-inline: auto;
+	}
+	.corporate-context h2 {
+		font-size: 1.15rem;
+		font-weight: 600;
+		line-height: 1.6;
+	}
+	.corporate-context p {
+		margin-top: 1rem;
+		line-height: 1.9;
+	}
+	.corporate-context a {
+		display: inline-block;
+		margin-top: 1.5rem;
+		color: #c2e4d6;
+		text-decoration: underline;
+		text-underline-offset: 0.25em;
+	}
+	.corporate-context a:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: 4px;
+	}
+</style>
+
 <script>
 	const revealTargets = document.querySelectorAll<HTMLElement>('[data-reveal]');
 	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

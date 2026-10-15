@@ -340,13 +340,13 @@ html.wf-landing .skip-link:focus {
 	transform: translateY(-2px);
 }
 
-.solid-button {
+html.wf-landing .solid-button {
 	border-color: var(--ivory-bright);
 	background: var(--ivory-bright);
 	color: var(--ink);
 }
 
-.solid-button:hover {
+html.wf-landing .solid-button:hover {
 	background: var(--ivory);
 	transform: translateY(-2px);
 }
