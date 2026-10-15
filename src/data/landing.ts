@@ -157,6 +157,14 @@ export const landingCopy = {
 			process: ['Issue', 'Proposal', 'Review', 'Decision', 'Fork'],
 			forkNote: '',
 		},
+		corporate: {
+			title: 'Acecoreの理念と、公開設計への取り組み',
+			body: 'Acecoreの企業理念は「世界を次のステージへ」。本質的でない負担を減らし、誰もが「やりたいこと」に挑戦できる環境を目指しています。World Foundationでは、自由な共同体が協力し、選択肢を増やすための仕組みを公開で設計しています。',
+			status:
+				'現在はPhase 0の公開設計段階です。各提案や決定の状況は設計資料に記録し、検討中の仕組みと提供中のサービスを分けてご案内します。',
+			link: 'Acecoreの企業理念を読む',
+			href: 'https://acecore.net/about/#corporate-philosophy-heading',
+		},
 		epilogue: {
 			marker: ['朝', 'EPILOGUE'],
 			title: ['生きることが、', '好きなことを諦める理由にならない。'],
@@ -263,6 +271,14 @@ export const landingCopy = {
 			processLabel: 'Open process',
 			process: ['Issue', 'Proposal', 'Review', 'Decision', 'Fork'],
 			forkNote: '',
+		},
+		corporate: {
+			title: 'Acecore’s philosophy and our open design work',
+			body: 'Acecore’s corporate philosophy is “Taking the world to the next stage.” It aims to reduce nonessential burdens and create an environment where everyone can pursue what they want to do. World Foundation openly designs ways for free communities to cooperate and create more choices.',
+			status:
+				'The project is currently in Phase 0: open design. Proposals and decisions are recorded in the design documents, with a clear distinction between ideas under discussion and services already available.',
+			link: 'Read Acecore’s corporate philosophy',
+			href: 'https://acecore.net/en/about/#corporate-philosophy-heading',
 		},
 		epilogue: {
 			marker: ['MORNING', 'EPILOGUE'],

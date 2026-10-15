@@ -340,7 +340,7 @@ html.wf-landing .skip-link:focus {
 	transform: translateY(-2px);
 }
 
-.solid-button {
+html.wf-landing .solid-button {
 	border-color: var(--ivory-bright);
 	background: var(--ivory-bright);
 	color: var(--ink);
