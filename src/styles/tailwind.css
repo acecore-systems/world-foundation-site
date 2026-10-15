@@ -346,7 +346,7 @@ html.wf-landing .solid-button {
 	color: var(--ink);
 }
 
-.solid-button:hover {
+html.wf-landing .solid-button:hover {
 	background: var(--ivory);
 	transform: translateY(-2px);
 }
