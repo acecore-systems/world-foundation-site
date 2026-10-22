@@ -6,7 +6,7 @@ The source of truth remains the Markdown files in `world-foundation`. The site c
 
 ## Local Development
 
-Node.js 24.18.0 or later is required. The repository-pinned version is recorded in `.node-version`.
+Node.js 24.22.1 or later is required. The repository-pinned version is recorded in `.node-version`.
 
 Clone both repositories as siblings:
 

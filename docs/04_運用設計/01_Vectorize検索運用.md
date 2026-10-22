@@ -125,14 +125,14 @@ Pages PreviewはVectorize resourceとbindingを持たず、`SEARCH_ENABLED=false
 Node.js は `.node-version` のバージョンを使います。
 
 ```powershell
-volta run --node 24.18.0 npm ci
+volta run --node 24.22.1 npm ci
 $env:WORLD_FOUNDATION_SOURCE = 'C:\Users\gnish\repos\world-foundation'
-volta run --node 24.18.0 npm run build
-volta run --node 24.18.0 npm run test:search
-volta run --node 24.18.0 npm run types:cloudflare:check
-volta run --node 24.18.0 npm run check:pages-config
-volta run --node 24.18.0 npm run typecheck:functions
-volta run --node 24.18.0 npm run sync:vectorize:dry-run
+volta run --node 24.22.1 npm run build
+volta run --node 24.22.1 npm run test:search
+volta run --node 24.22.1 npm run types:cloudflare:check
+volta run --node 24.22.1 npm run check:pages-config
+volta run --node 24.22.1 npm run typecheck:functions
+volta run --node 24.22.1 npm run sync:vectorize:dry-run
 ```
 
 Preview deploymentではPagefindが動作し、`/api/search`がfail closedすることを
@@ -142,8 +142,8 @@ canaryとして実行します。
 Pages binding を含むローカル確認では、Previewと共有するProduction名のlocal D1へ先にmigrationを適用します。
 
 ```powershell
-volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-search-production --local
-volta run --node 24.18.0 npx wrangler pages dev --env preview
+volta run --node 24.22.1 npx wrangler d1 migrations apply world-foundation-search-production --local
+volta run --node 24.22.1 npx wrangler pages dev --env preview
 ```
 
 Previewには`SEARCH_INDEX`がなく`SEARCH_ENABLED=false`のため、通常のローカル
@@ -152,8 +152,8 @@ Previewには`SEARCH_INDEX`がなく`SEARCH_ENABLED=false`のため、通常の�
 remote D1 migration は共有するProduction databaseへdeploymentより先に明示適用し、未適用がないことを再確認します。
 
 ```powershell
-volta run --node 24.18.0 npx wrangler d1 migrations apply world-foundation-search-production --remote --env production
-volta run --node 24.18.0 npx wrangler d1 migrations list world-foundation-search-production --remote --env production
+volta run --node 24.22.1 npx wrangler d1 migrations apply world-foundation-search-production --remote --env production
+volta run --node 24.22.1 npx wrangler d1 migrations list world-foundation-search-production --remote --env production
 ```
 
 ## 同期の安全策
