@@ -10,7 +10,7 @@ export default defineConfig({
 	},
 	site: 'https://world-foundation.acecore.net',
 	integrations: [
-		mermaid(),
+		mermaid({ mermaidConfig: { layout: 'dagre', look: 'classic' } }),
 		starlight({
 			customCss: ['./src/styles/tailwind.css'],
 			title: {
