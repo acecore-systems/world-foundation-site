@@ -42,7 +42,7 @@
       "vectorize": [
         {
           "binding": "SEARCH_INDEX",
-          "index_name": "world-foundation-search-bge-m3-1024-production-v1",
+          "index_name": "world-foundation-search-voyage-4-lite-1024-production-v1",
           "remote": true,
         },
       ],
@@ -54,8 +54,15 @@
           "migrations_dir": "./migrations/search",
         },
       ],
+      "services": [
+        {
+          "binding": "VOYAGE_EMBEDDER",
+          "service": "acecore-chat-worker",
+          "entrypoint": "VoyageEmbedding",
+        },
+      ],
       "vars": {
-        "SEARCH_EMBEDDING_MODEL": "@cf/baai/bge-m3",
+        "SEARCH_EMBEDDING_MODEL": "voyage-4-lite",
         "SEARCH_EMBEDDING_DIMENSIONS": "1024",
         "SEARCH_ENABLED": "true",
         "SEARCH_MIN_SCORE": "0.40",
