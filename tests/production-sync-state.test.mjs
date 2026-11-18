@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 
 import {
 	PRODUCTION_SYNC_ATTEMPT_ARTIFACT,
@@ -407,3 +408,15 @@ function receiptText({
 		}),
 	);
 }
+
+
+test('BGE、両方、Voyageのreceiptとartifactは相互に混同しない', () => {
+  const moduleUrl = new URL('../scripts/production-sync-state.mjs', import.meta.url).href;
+  const code = `import * as m from ${JSON.stringify(moduleUrl)}; const s=m.createProductionSyncState({state:'attempt',siteCommit:'a'.repeat(40),contentCommit:'b'.repeat(40),corpusVersion:'c'.repeat(20),corpusSha256:'d'.repeat(64),vectorCount:135,workflowRunId:'1',workflowRunAttempt:1}); console.log(JSON.stringify({artifact:m.PRODUCTION_SYNC_ATTEMPT_ARTIFACT, state:s}));`;
+  const run = profile => JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', code], { env: { ...process.env, PRODUCTION_SYNC_PROFILE: profile }, encoding: 'utf8' }));
+  const bge = run('bge'); const both = run('both'); const voyage = run('voyage');
+  assert.equal(new Set([bge.artifact, both.artifact, voyage.artifact]).size, 3);
+  assert.equal(bge.state.indexName, 'world-foundation-search-bge-m3-1024-production-v1');
+  assert.deepEqual(both.state.indexNames, ['world-foundation-search-bge-m3-1024-production-v1', 'world-foundation-search-voyage-4-lite-1024-production-v1']);
+  assert.equal(voyage.state.indexName, 'world-foundation-search-voyage-4-lite-1024-production-v1');
+});

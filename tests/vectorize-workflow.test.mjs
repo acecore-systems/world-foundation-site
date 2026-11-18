@@ -267,3 +267,18 @@ test('PreviewはVectorize bindingなし、収束後はProductionだけ意味検�
 	assert.equal(parsedConfig.env.preview.vars.SEARCH_ENABLED, 'false');
 	assert.equal(parsedConfig.env.production.vars.SEARCH_ENABLED, 'true');
 });
+
+
+test('Voyageの有効化状態で同期receiptを分離し公開identityの検証を維持する', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const reconcile = await readFile(reconcileWorkflowUrl, 'utf8');
+  assert.match(workflow, /WORLD_VOYAGE_SYNC_ENABLED/);
+  assert.match(workflow, /WORLD_BGE_SYNC_ENABLED/);
+  assert.match(workflow, /PRODUCTION_SYNC_PROFILE/);
+  assert.match(workflow, /production-attempt-both-v1/);
+  assert.match(workflow, /production-attempt-voyage-v1/);
+  assert.match(workflow, /--embedding-provider voyage/);
+  assert.match(workflow, /VOYAGE_API_KEY: \$\{\{ secrets\.VOYAGE_API_KEY \}\}/);
+  assert.match(workflow, /--expected-content-commit "\$EXPECTED_CONTENT_COMMIT"/);
+  assert.match(reconcile, /production_reconcile: true/);
+});
