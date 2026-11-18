@@ -39,6 +39,8 @@ jobs:
   verify-pull-request:
     name: Verify semantic search changes without secrets
     if: github.event_name == 'pull_request'
+    env:
+      PRODUCTION_SYNC_PROFILE: bge
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

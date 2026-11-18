@@ -419,4 +419,7 @@ test('BGE、両方、Voyageのreceiptとartifactは相互に混同しない', ()
   assert.equal(bge.state.indexName, 'world-foundation-search-bge-m3-1024-production-v1');
   assert.deepEqual(both.state.indexNames, ['world-foundation-search-bge-m3-1024-production-v1', 'world-foundation-search-voyage-4-lite-1024-production-v1']);
   assert.equal(voyage.state.indexName, 'world-foundation-search-voyage-4-lite-1024-production-v1');
+  const parseCode = `import * as m from ${JSON.stringify(moduleUrl)}; try { m.parseProductionSyncState(process.env.RECEIPT); process.exit(1); } catch { process.exit(0); }`;
+  execFileSync(process.execPath, ['--input-type=module', '-e', parseCode], { env: { ...process.env, PRODUCTION_SYNC_PROFILE: 'both', RECEIPT: JSON.stringify(bge.state) } });
+  execFileSync(process.execPath, ['--input-type=module', '-e', parseCode], { env: { ...process.env, PRODUCTION_SYNC_PROFILE: 'voyage', RECEIPT: JSON.stringify(both.state) } });
 });

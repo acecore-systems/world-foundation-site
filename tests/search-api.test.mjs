@@ -565,6 +565,122 @@ function searchRequest(body, headers = {}, signal) {
   });
 }
 
+test("Voyage指定時はqueryを共有Workerへ送りBGEを実行しない", async () => {
+  const env = createEnv({
+    onAiRequest() {
+      assert.fail("BGE must not run");
+    },
+    onQuery(values) {
+      assert.deepEqual(values, queryVector);
+    },
+  });
+  env.SEARCH_EMBEDDING_MODEL = "voyage-4-lite";
+  env.VOYAGE_EMBEDDER = {
+    async fetch(url, init) {
+      assert.equal(url, "https://voyage-embeddings.internal/v1/embeddings");
+      assert.equal(init.method, "POST");
+      assert.deepEqual(JSON.parse(init.body), {
+        model: "voyage-4-lite",
+        input: ["検索"],
+        input_type: "query",
+        output_dimension: 1024,
+        output_dtype: "float",
+        truncation: false,
+      });
+      return Response.json({
+        model: "voyage-4-lite",
+        data: [{ index: 0, embedding: queryVector }],
+      });
+    },
+  };
+  const response = await onRequestPost({
+    request: searchRequest({ query: "検索", locale: "ja" }),
+    env,
+  });
+  assert.equal(response.status, 200);
+});
+
+test("Voyage binding欠落・不正応答とキャンセルを安全に処理する", async () => {
+  const env = createEnv({
+    onAiRequest() {
+      assert.fail("BGE must not run");
+    },
+    onQuery() {
+      assert.fail("index must not run");
+    },
+  });
+  env.SEARCH_EMBEDDING_MODEL = "voyage-4-lite";
+  assert.equal(
+    (
+      await onRequestPost({
+        request: searchRequest({ query: "検索", locale: "ja" }),
+        env,
+      })
+    ).status,
+    503,
+  );
+  const invalid = [
+    { model: "wrong", data: [{ index: 0, embedding: queryVector }] },
+    { model: "voyage-4-lite", data: [] },
+    { model: "voyage-4-lite", data: [{ index: 1, embedding: queryVector }] },
+    { model: "voyage-4-lite", data: [{ index: 0, embedding: [1] }] },
+    {
+      model: "voyage-4-lite",
+      data: [{ index: 0, embedding: [...queryVector.slice(1), null] }],
+    },
+  ];
+  const originalError = console.error;
+  const logs = [];
+  console.error = (value) => logs.push(String(value));
+  try {
+    for (const payload of invalid) {
+      env.VOYAGE_EMBEDDER = { fetch: async () => Response.json(payload) };
+      assert.equal(
+        (
+          await onRequestPost({
+            request: searchRequest({ query: "秘密の検索", locale: "ja" }),
+            env,
+          })
+        ).status,
+        502,
+      );
+    }
+    assert.doesNotMatch(logs.join(" "), /秘密の検索/);
+    const controller = new AbortController();
+    env.VOYAGE_EMBEDDER = {
+      async fetch() {
+        controller.abort();
+        throw new DOMException("cancelled", "AbortError");
+      },
+    };
+    assert.equal(
+      (
+        await onRequestPost({
+          request: searchRequest(
+            { query: "検索", locale: "ja" },
+            {},
+            controller.signal,
+          ),
+          env,
+        })
+      ).status,
+      499,
+    );
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test("Voyage queryでも英語検索はen namespaceへ限定する", async () => {
+  let queryOptions;
+  const env = createEnv({ onAiRequest() { assert.fail("BGE must not run"); }, onQuery(_values, options) { queryOptions = options; } });
+  env.SEARCH_EMBEDDING_MODEL = "voyage-4-lite";
+  env.VOYAGE_EMBEDDER = { async fetch() { return Response.json({ model: "voyage-4-lite", data: [{ index: 0, embedding: queryVector }] }); } };
+  const response = await onRequestPost({ request: searchRequest({ query: "world governance", locale: "en" }), env });
+  assert.equal(response.status, 200);
+  assert.equal(queryOptions.namespace, "en");
+});
+
 function createEnv({
   matches = [],
   queryResult,

@@ -255,7 +255,7 @@ test('PreviewはVectorize bindingなし、収束後はProductionだけ意味検�
 
 	assert.equal(
 		config.match(
-			/"index_name": "world-foundation-search-bge-m3-1024-production-v1"/gu,
+			/"index_name": "world-foundation-search-voyage-4-lite-1024-production-v1"/gu,
 		)?.length,
 		1,
 	);

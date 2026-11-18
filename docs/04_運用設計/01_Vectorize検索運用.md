@@ -3,7 +3,7 @@
 World Foundation Site の検索は、次の 2 系統を同じ検索モーダルで提供します。
 
 - Pagefind: ブラウザ内で動くキーワード検索。常に主検索として残す。
-- Cloudflare Vectorize: Workers AI のBGE-M3多言語embeddingを使う「関連する内容」。失敗時はこの欄だけを隠し、Pagefind を継続する。
+- Cloudflare Vectorize: Voyage 4 Lite多言語embeddingを使う「関連する内容」。失敗時はこの欄だけを隠し、Pagefind を継続する。
 
 Vectorize を AI 回答生成には使いません。公開済み設計資料の候補を返す検索補助として扱います。
 
@@ -12,9 +12,9 @@ Vectorize を AI 回答生成には使いません。公開済み設計資料の
 1. `scripts/sync-content.mjs` が原典を同期し、公開 route と原典 commit を `.vectorize/content-manifest.json` に記録する。
 2. Astro と Starlight が静的サイトと Pagefind index を `dist/` に生成する。
 3. `scripts/build-search-corpus.mjs` が公開 HTML から本文を抽出し、`.vectorize/corpus.json` を生成する。
-4. `scripts/sync-vectorize.mjs` が全 chunk をCloudflare Workers AIへ送って再 embedding し、Vectorize へ upsert して同じ ID の values / metadata 破損も修復する。
+4. `scripts/sync-vectorize.mjs` が全 chunk を対象索引のモデルへ送って再 embedding し、Vectorize へ upsert して同じ ID の values / metadata 破損も修復する。
 5. corpus から消えた ID を削除し、最後の mutation が検索可能になるまで待つ。
-6. Pages Function `/api/search` がネイティブ `AI` bindingの同じmodelでqueryをembeddingし、binding経由で表示中の言語namespaceを検索する。
+6. Pages Function `/api/search` が共有Workerの `VoyageEmbedding` bindingでqueryをembeddingし、binding経由で表示中の言語namespaceを検索する。
 
 公開書き込み API はありません。index 更新は protected `main` 上のProduction
 GitHub Actionsからのみ実行します。同じrepositoryのfeature branchから`main`への
@@ -22,31 +22,44 @@ Pull Requestは、exact headと現在の原典からbuild、test、同期dry-run
 検証します。Pages PreviewにはVectorize index、binding、GitHub Environment、
 同期用token/secretを置かず、Vectorizeへ接続・同期しません。
 
+## Voyage同期への移行
+
+`cloudflare-world-foundation-search-production` Environmentに `VOYAGE_API_KEY` を登録し、
+`WORLD_VOYAGE_SYNC_ENABLED=true` で候補への同期を有効化します。BGE同期は既定で維持し、
+依存がなくなった後に `WORLD_BGE_SYNC_ENABLED=false` で停止できます。push、Pages check、
+手動、reconcileは同じworkflowとconcurrencyを共有し、BGEのみ・両方・Voyageのみの
+各構成でattempt/success artifactを分離します。構成変更時に別構成の成功を流用しません。
+両方無効の構成は失敗します。候補の同期・ID照合・検索品質を確認してからPagesを切り替え、
+障害時はモデル・binding・indexを一緒にrevertします。旧索引は保持します。
+
+公開marker互換のためcorpus schemaとID算出契約の従来のBGEモデル表記は変更しません。
+これは公開corpusの識別子であり、Voyage候補に書くvectorの生成モデルは `voyage-4-lite` です。
+
 ## Cloudflare リソース
 
 | 環境       | Vectorize index                                     | D1 rate-limit database               | semantic search |
 | ---------- | --------------------------------------------------- | ------------------------------------ | --------------- |
 | Preview    | なし（index / bindingなし）                         | `world-foundation-search-production` | 無効            |
-| Production | `world-foundation-search-bge-m3-1024-production-v1` | `world-foundation-search-production` | 有効            |
+| Production | `world-foundation-search-voyage-4-lite-1024-production-v1` | `world-foundation-search-production` | 有効            |
 
 embedding contract は次のとおりです。
 
-- model: `@cf/baai/bge-m3`
+- model: `voyage-4-lite`
 - dimensions: `1024`
-- pooling: `cls`
+- output: `float`、query / document を用途に応じて指定
 - metric: `cosine`
 - chunk: 850 文字目標 / 1200 文字上限 / 120 文字 overlap
 
-queryとcorpusの両方を同じBGE-M3 / 1024次元 / cosine契約で生成します。model、dimensions、metricは既存index内で混在させません。旧OpenAI / 1536次元のProduction indexは即時rollback用に保持し、この移行では削除しません。
+queryとcorpusの両方をVoyage 4 Lite / 1024次元 / cosine契約で生成します。model、dimensions、metricは既存index内で混在させません。旧OpenAI / 1536次元のProduction indexは即時rollback用に保持し、この移行では削除しません。
 
 Pages 設定は `wrangler.jsonc` を source of truth とします。導入前の Dashboard 設定は `wrangler pages download config world-foundation-site` で取得し、project 名、output directory、compatibility date、空の production environment だけであることを確認済みです。
 
-Pages FunctionはProductionだけに置いたネイティブ `AI` bindingを使用します。`wrangler.jsonc` の `vars` にはmodelとdimensionsを置き、検索embedding用の外部API keyは持ちません。同期workflowはProduction GitHub EnvironmentのCloudflare tokenでWorkers AI REST APIとVectorizeを呼びます。PreviewにはVectorize/AI binding、同期用GitHub Environment、Cloudflare tokenを置かず、Pull Request検証にもsecretを渡しません。
+Pages FunctionはProductionの `VOYAGE_EMBEDDER` service bindingを使用します。検索用キーは共有WorkerのSecrets Store bindingに置きます。同期workflowはProduction GitHub EnvironmentのCloudflare tokenと専用 `VOYAGE_API_KEY` を使います。PreviewにはVectorize/AI binding、同期用GitHub Environment、Cloudflare tokenを置かず、Pull Request検証にもsecretを渡しません。
 
 Preview向けindexは置きません。PreviewはVectorize index、
 binding、同期経路を持たず、Pagefindだけを検証します。Production indexはGitHub Actions run
 [30602663665](https://github.com/acecore-systems/world-foundation-site/actions/runs/30602663665)
-で公開buildと一致する135 vectorsへ同期した記録は旧OpenAI indexの証跡です。新BGE-M3 indexの完了判定には使いません。rootとPreviewは
+で公開buildと一致する135 vectorsへ同期した記録は旧OpenAI indexの証跡です。Voyage indexの完了判定には使いません。rootとPreviewは
 `SEARCH_ENABLED="false"`、Productionだけを`"true"`にします。
 
 ## 原典と公開 build の一致
@@ -177,8 +190,8 @@ volta run --node 24.22.1 npx wrangler d1 migrations list world-foundation-search
 - body は 2 KiB、query は 2〜160 文字、`topK` と model は server 側で固定する。
 - 全体 300 回/分を先に、client 20 回/分を次に固定窓で D1 へ fail-closed に適用する。全体上限到達後は caller UUID ごとの row を作らない。
 - client key はブラウザの session UUID を SHA-256 化して使い、接続 IP は rate limit DBへ使わない。期限切れ row は各検索の前に削除する。
-- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は Workers AI の利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
-- browser が検索を中止した場合はWorkers AI実行の前後とVectorize queryの前に中止状態を確認する。
+- session UUID は利用者が変更できるため、client 制限だけを費用上限とはみなさない。期限切れ row の削除件数にも上限を設ける。全体制限も必ず有効化し、公開後は Voyage の利用量と 429 を監視する。必要になった場合は Turnstile や Cloudflare の edge rate-limit を追加する。
+- browser が検索を中止した場合は埋め込み実行の前後とVectorize queryの前に中止状態を確認する。
 - metadata の URL は同一 Origin の root-relative 公開 route だけを許可する。
 - response は `Cache-Control: no-store`。runtime log は request ID、stage、error class だけを記録する。
 - `SEARCH_ENABLED` を `"false"` にすると、UI と Pagefind を壊さず意味検索 API を停止できる。
@@ -188,10 +201,10 @@ volta run --node 24.22.1 npx wrangler d1 migrations list world-foundation-search
 1. Pagefind のキーワード検索が動くことを確認する。
 2. `/api/search` の status と `X-Search-Request-Id` を確認する。
 3. Pages Functions の runtime log を request ID で追う。query 本文は記録されない。
-4. Workers AI、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
+4. Voyage、Vectorize、D1 の障害時は `SEARCH_ENABLED` を `"false"` にして再 deploy する。
 5. index を作り直す場合は新 index の同期と canary を終えてから binding を切り替える。切替前に現在のProduction indexを削除しない。
 
-## BGE-M3 / 1024次元移行 gate
+## 旧BGE-M3 / 1024次元移行 gate（履歴）
 
 新しいBGE-M3 / 1024次元Production indexは、GitHub-connected Production deployment前に全件同期し、
 ID集合、corpus version、日英namespace canaryを確認します。直前のOpenAI / 1536次元indexはrollback用に残します。PreviewはVectorize resource / bindingなし・
