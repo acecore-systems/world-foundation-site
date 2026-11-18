@@ -2,12 +2,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PRODUCTION_SYNC_ATTEMPT_ARTIFACT =
-	'world-foundation-vectorize-production-attempt-v2';
-export const PRODUCTION_SYNC_SUCCESS_ARTIFACT =
-	'world-foundation-vectorize-production-success-v2';
-export const PRODUCTION_VECTORIZE_INDEX =
-	'world-foundation-search-bge-m3-1024-production-v1';
+const profile = process.env.PRODUCTION_SYNC_PROFILE || 'bge';
+if (!['bge', 'both', 'voyage'].includes(profile)) throw new Error('Invalid Production sync profile.');
+const BGE_INDEX = 'world-foundation-search-bge-m3-1024-production-v1';
+const VOYAGE_INDEX = 'world-foundation-search-voyage-4-lite-1024-production-v1';
+const suffix = profile === 'bge' ? 'v2' : `${profile}-v1`;
+export const PRODUCTION_SYNC_ATTEMPT_ARTIFACT = `world-foundation-vectorize-production-attempt-${suffix}`;
+export const PRODUCTION_SYNC_SUCCESS_ARTIFACT = `world-foundation-vectorize-production-success-${suffix}`;
+export const PRODUCTION_VECTORIZE_INDEX = profile === 'voyage' ? VOYAGE_INDEX : BGE_INDEX;
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/i;
 const CORPUS_VERSION_PATTERN = /^[0-9a-f]{20}$/i;
@@ -56,6 +58,11 @@ export function createProductionSyncState({
 		),
 	};
 
+	if (profile !== 'bge') {
+		normalized.profile = profile;
+		normalized.indexNames = profile === 'both' ? [BGE_INDEX, VOYAGE_INDEX] : [VOYAGE_INDEX];
+	}
+
 	if (state === 'success') {
 		normalized.attemptArtifactId = normalizePositiveInteger(
 			attemptArtifactId,
@@ -73,7 +80,8 @@ export function parseProductionSyncState(text) {
 	if (
 		payload?.schemaVersion !== 1 ||
 		payload?.target !== 'production' ||
-		payload?.indexName !== PRODUCTION_VECTORIZE_INDEX
+		payload?.indexName !== PRODUCTION_VECTORIZE_INDEX ||
+		(profile === 'bge' ? payload?.profile !== undefined : payload?.profile !== profile || JSON.stringify(payload?.indexNames) !== JSON.stringify(profile === 'both' ? [BGE_INDEX, VOYAGE_INDEX] : [VOYAGE_INDEX]))
 	) {
 		throw new Error('Production sync state identity is invalid.');
 	}

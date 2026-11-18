@@ -43,6 +43,7 @@ const MANAGED_VECTOR_ID_PATTERN = new RegExp(
 const TARGET_INDEX_NAMES = Object.freeze({
   production: "world-foundation-search-bge-m3-1024-production-v1",
 });
+const VOYAGE_INDEX_NAME = "world-foundation-search-voyage-4-lite-1024-production-v1";
 const SUPPORTED_LOCALES = ["ja", "en"];
 
 class CloudflareApiError extends Error {
@@ -56,6 +57,8 @@ class CloudflareApiError extends Error {
 export async function syncVectorize({
   accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
   apiToken = process.env.CLOUDFLARE_API_TOKEN,
+  voyageApiKey = process.env.VOYAGE_API_KEY,
+  embeddingProvider = "bge",
   target = process.env.VECTORIZE_TARGET,
   confirmProduction = process.env.VECTORIZE_CONFIRM_PRODUCTION,
   expectedSiteCommit = process.env.VECTORIZE_EXPECTED_SITE_COMMIT,
@@ -78,7 +81,8 @@ export async function syncVectorize({
   const corpus = JSON.parse(await readFile(corpusFile, "utf8"));
   validateCorpus(corpus);
   const normalizedTarget = normalizeTarget(target);
-  const indexName = TARGET_INDEX_NAMES[normalizedTarget];
+  if (!["bge", "voyage"].includes(embeddingProvider)) throw new Error("Unsupported embedding provider.");
+  const indexName = embeddingProvider === "voyage" ? VOYAGE_INDEX_NAME : TARGET_INDEX_NAMES[normalizedTarget];
   validateProductionConfirmation({
     target: normalizedTarget,
     confirmation: confirmProduction,
@@ -119,6 +123,8 @@ export async function syncVectorize({
     logger.log(JSON.stringify({ event: "vectorize_sync_dry_run", ...result }));
     return result;
   }
+
+  if (embeddingProvider === "voyage" && !voyageApiKey?.trim()) throw new Error("VOYAGE_API_KEY is required for Voyage sync.");
 
   if (typeof fetchImpl !== "function") {
     throw new Error("A Fetch API implementation is required.");
@@ -171,7 +177,9 @@ export async function syncVectorize({
   const mutationIds = [];
   const vectorsToUpsert = [];
   for (const chunkBatch of batches(chunksToUpsert, EMBEDDING_BATCH_SIZE)) {
-    const embeddings = await createEmbeddings(cloudflareClient, chunkBatch);
+    const embeddings = embeddingProvider === "voyage"
+      ? await createVoyageEmbeddings(chunkBatch, { apiKey: voyageApiKey, fetchImpl, requestTimeoutMs })
+      : await createEmbeddings(cloudflareClient, chunkBatch);
     vectorsToUpsert.push(
       ...chunkBatch.map((chunk, index) => ({
         id: chunk.id,
@@ -752,6 +760,27 @@ async function listVectorIdsOnce(client, indexName) {
   return ids;
 }
 
+async function createVoyageEmbeddings(chunks, { apiKey, fetchImpl, requestTimeoutMs }) {
+  let response;
+  try {
+    response = await fetchImpl("https://ai.mongodb.com/v1/embeddings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "voyage-4-lite", input: chunks.map(({ text }) => text), input_type: "document", output_dimension: 1024, output_dtype: "float", truncation: false }),
+      redirect: "error", signal: AbortSignal.timeout(requestTimeoutMs),
+    });
+  } catch { throw new Error("Voyage embeddings request failed."); }
+  if (!response.ok) { await response.body?.cancel().catch(() => {}); throw new Error(`Voyage embeddings returned HTTP ${response.status}.`); }
+  const payload = await readBoundedJsonResponse(response, MAX_CLOUDFLARE_RESPONSE_BYTES, "Voyage");
+  if (payload?.model !== "voyage-4-lite" || !Array.isArray(payload.data) || payload.data.length !== chunks.length) throw new Error("Voyage returned an invalid embedding response.");
+  const ordered = new Map();
+  for (const row of payload.data) {
+    if (!Number.isInteger(row?.index) || row.index < 0 || row.index >= chunks.length || ordered.has(row.index)) throw new Error("Voyage returned an invalid embedding index.");
+    ordered.set(row.index, row.embedding);
+  }
+  return extractEmbeddingData({ data: chunks.map((_, i) => ordered.get(i)) }, chunks.length);
+}
+
 async function createEmbeddings(client, chunks) {
   const payload = await client.request(`/ai/run/${SEARCH_EMBEDDING_MODEL}`, {
     method: "POST",
@@ -980,6 +1009,7 @@ export function parseArguments(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--dry-run") options.dryRun = true;
+    else if (argument === "--embedding-provider") options.embeddingProvider = requireArgumentValue(argv, ++index, argument);
     else if (argument === "--allow-large-delete") {
       options.allowLargeDelete = true;
     } else if (argument === "--target") {

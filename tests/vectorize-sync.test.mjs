@@ -644,6 +644,30 @@ test('非管理形式の現存IDがあればmutation前にfail closedする', as
 	assert.equal(mutationRequested, false);
 });
 
+test('Voyage候補は既存identity gateと専用キーを必須にし文書embeddingを使う', async () => {
+  const corpus = createCorpus();
+  const corpusFile = await writeCorpus(corpus);
+  const voyageIndex = 'world-foundation-search-voyage-4-lite-1024-production-v1';
+  await assert.rejects(syncVectorize({ ...liveSyncOptions(corpus, corpusFile), embeddingProvider: 'voyage', voyageApiKey: '', fetchImpl() { assert.fail('network must not run'); }, logger: silentLogger }), /VOYAGE_API_KEY/);
+  let embedded = 0;
+  const fake = async (input, init = {}) => {
+    const url=String(input);
+    if (url.endsWith(`/vectorize/v2/indexes/${voyageIndex}`)) return cloudflareResponse({name:voyageIndex,config:{dimensions:1024,metric:'cosine'}});
+    if (url.includes('/list?')) return cloudflareResponse({vectors:corpus.chunks.map(({id})=>({id})),isTruncated:false});
+    if (url === 'https://ai.mongodb.com/v1/embeddings') {
+      const body=JSON.parse(init.body);
+      assert.equal(body.model,'voyage-4-lite'); assert.equal(body.input_type,'document'); assert.equal(body.output_dimension,1024); assert.equal(body.output_dtype,'float'); assert.equal(body.truncation,false); assert.ok(body.input.length<=16);
+      embedded += body.input.length;
+      return Response.json({model:'voyage-4-lite',data:body.input.map((_,index)=>({index,embedding}))});
+    }
+    if (url.endsWith('/upsert')) return cloudflareResponse({mutationId:'m'});
+    if (url.endsWith('/info')) return cloudflareResponse({processedUpToMutation:'m'});
+    throw new Error('unexpected request');
+  };
+  const result=await syncVectorize({ ...liveSyncOptions(corpus, corpusFile), embeddingProvider:'voyage', voyageApiKey:'test', fetchImpl:fake, logger:silentLogger });
+  assert.equal(result.indexName,voyageIndex); assert.equal(embedded,corpus.vectorCount);
+});
+
 function createCorpus({ vectorCount = 80, japaneseCount = 55 } = {}) {
 	const chunkIndexesBySource = new Map();
 	const chunks = Array.from({ length: vectorCount }, (_, index) => {

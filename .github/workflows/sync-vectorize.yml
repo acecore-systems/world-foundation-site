@@ -31,8 +31,9 @@ permissions:
 env:
   CONTENT_REPOSITORY: acecore-systems/world-foundation
   PRODUCTION_BUILD_MARKER_URL: https://world-foundation.acecore.net/.well-known/world-foundation-build.json
-  PRODUCTION_SYNC_ATTEMPT_ARTIFACT: world-foundation-vectorize-production-attempt-v2
-  PRODUCTION_SYNC_SUCCESS_ARTIFACT: world-foundation-vectorize-production-success-v2
+  PRODUCTION_SYNC_PROFILE: ${{ vars.WORLD_VOYAGE_SYNC_ENABLED == 'true' && (vars.WORLD_BGE_SYNC_ENABLED == 'false' && 'voyage' || 'both') || (vars.WORLD_BGE_SYNC_ENABLED == 'false' && 'disabled' || 'bge') }}
+  PRODUCTION_SYNC_ATTEMPT_ARTIFACT: ${{ vars.WORLD_VOYAGE_SYNC_ENABLED == 'true' && (vars.WORLD_BGE_SYNC_ENABLED == 'false' && 'world-foundation-vectorize-production-attempt-voyage-v1' || 'world-foundation-vectorize-production-attempt-both-v1') || 'world-foundation-vectorize-production-attempt-v2' }}
+  PRODUCTION_SYNC_SUCCESS_ARTIFACT: ${{ vars.WORLD_VOYAGE_SYNC_ENABLED == 'true' && (vars.WORLD_BGE_SYNC_ENABLED == 'false' && 'world-foundation-vectorize-production-success-voyage-v1' || 'world-foundation-vectorize-production-success-both-v1') || 'world-foundation-vectorize-production-success-v2' }}
 
 jobs:
   verify-pull-request:
@@ -842,6 +843,7 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: db9b62f409f463da7acbcc374b8385d0
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SEARCH_PRODUCTION_API_TOKEN }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           EXPECTED_CONTENT_COMMIT: ${{ needs.build-production-corpus.outputs.content_commit }}
           EXPECTED_CORPUS_VERSION: ${{ needs.build-production-corpus.outputs.corpus_version }}
           EXPECTED_SITE_COMMIT: ${{ needs.build-production-corpus.outputs.site_commit }}
@@ -855,13 +857,33 @@ jobs:
             "$PRODUCTION_BUILD_MARKER_URL" \
             --assert-current \
             payload/corpus.json
-          node tooling/scripts/sync-vectorize.mjs \
-            --corpus payload/corpus.json \
-            --target production \
-            --expected-site-commit "$EXPECTED_SITE_COMMIT" \
-            --expected-content-commit "$EXPECTED_CONTENT_COMMIT" \
-            --expected-corpus-version "$EXPECTED_CORPUS_VERSION" \
-            --confirm-production "$EXPECTED_CORPUS_VERSION"
+          if [[ "$PRODUCTION_SYNC_PROFILE" == "both" || "$PRODUCTION_SYNC_PROFILE" == "bge" ]]; then
+            node tooling/scripts/sync-vectorize.mjs \
+              --corpus payload/corpus.json \
+              --target production \
+              --expected-site-commit "$EXPECTED_SITE_COMMIT" \
+              --expected-content-commit "$EXPECTED_CONTENT_COMMIT" \
+              --expected-corpus-version "$EXPECTED_CORPUS_VERSION" \
+              --confirm-production "$EXPECTED_CORPUS_VERSION"
+          fi
+          if [[ "$PRODUCTION_SYNC_PROFILE" == "both" || "$PRODUCTION_SYNC_PROFILE" == "voyage" ]]; then
+            if [[ -z "${VOYAGE_API_KEY:-}" ]]; then
+              echo "::error::VOYAGE_API_KEY is not configured."
+              exit 1
+            fi
+            node tooling/scripts/wait-for-deployment.mjs \
+              "$PRODUCTION_BUILD_MARKER_URL" \
+              --assert-current \
+              payload/corpus.json
+            node tooling/scripts/sync-vectorize.mjs \
+              --corpus payload/corpus.json \
+              --target production \
+              --embedding-provider voyage \
+              --expected-site-commit "$EXPECTED_SITE_COMMIT" \
+              --expected-content-commit "$EXPECTED_CONTENT_COMMIT" \
+              --expected-corpus-version "$EXPECTED_CORPUS_VERSION" \
+              --confirm-production "$EXPECTED_CORPUS_VERSION"
+          fi
           node tooling/scripts/wait-for-deployment.mjs \
             "$PRODUCTION_BUILD_MARKER_URL" \
             --assert-current \
