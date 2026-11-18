@@ -2,7 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 
-import {
+// These fixtures describe the BGE receipt regardless of the workflow's live
+// profile. The module reads its profile at import time, so restore the process
+// environment immediately after loading the fixture instance.
+const inheritedProfile = process.env.PRODUCTION_SYNC_PROFILE;
+let fixtureModule;
+try {
+	process.env.PRODUCTION_SYNC_PROFILE = 'bge';
+	fixtureModule = await import('../scripts/production-sync-state.mjs');
+} finally {
+	if (inheritedProfile === undefined) delete process.env.PRODUCTION_SYNC_PROFILE;
+	else process.env.PRODUCTION_SYNC_PROFILE = inheritedProfile;
+}
+
+const {
 	PRODUCTION_SYNC_ATTEMPT_ARTIFACT,
 	PRODUCTION_SYNC_SUCCESS_ARTIFACT,
 	PRODUCTION_VECTORIZE_INDEX,
@@ -11,7 +24,7 @@ import {
 	productionSyncStateMatches,
 	selectLatestTrustedProductionSyncEvent,
 	verifyLatestProductionSyncSuccess,
-} from '../scripts/production-sync-state.mjs';
+} = fixtureModule;
 
 const REPOSITORY_ID = '101';
 const SITE_A = 'a'.repeat(40);
