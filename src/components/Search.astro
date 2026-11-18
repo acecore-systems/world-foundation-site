@@ -63,7 +63,7 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 				'意味の近い資料が' + count + '件見つかりました。',
 			viewResult: 'ページを見る',
 			privacy:
-				'検索語は、このサイトとAcecore関連サイトの公開情報を検索するために送信されます。個人情報・非公開情報は入力しないでください。',
+				'サイト内の意味検索では、検索語をMongoDB Voyage AIに送信し、公開情報と照合します。Acecore関連サイトの検索にも検索語を送信します。個人情報や非公開情報は入力しないでください。',
 		},
 		en: {
 			heading: 'Semantically related content',
@@ -76,7 +76,7 @@ import DefaultSearch from '@astrojs/starlight/components/Search.astro';
 				' found.',
 			viewResult: 'View page',
 			privacy:
-				'Your query is sent to search this site and related Acecore public information. Do not enter personal or non-public information.',
+				'For semantic search on this site, we send your query to MongoDB Voyage AI to match public information. We also send your query to search related Acecore sites. Do not enter personal or non-public information.',
 		},
 	} as const;
 
