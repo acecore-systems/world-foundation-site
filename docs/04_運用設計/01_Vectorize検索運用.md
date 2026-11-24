@@ -7,6 +7,8 @@ World Foundation Site の検索は、次の 2 系統を同じ検索モーダル�
 
 Vectorize を AI 回答生成には使いません。公開済み設計資料の候補を返す検索補助として扱います。
 
+本番のVoyage検索と文書同期は `config/ai-models.generated.json` の `search.embedding` を参照します。既存索引はVoyage 4 Lite・1,024次元です。配布設定が索引と互換性を満たさない場合は埋め込みの送信前に停止します。モデルを変更する場合は、新しいモデルで文書を再埋め込みした索引を準備し、共有Workerと呼び出し元を合わせて切り替えます。公開コーパスの形式・IDとBGE-M3索引向けの同期には既存の契約を使います。
+
 ## 構成
 
 1. `scripts/sync-content.mjs` が原典を同期し、公開 route と原典 commit を `.vectorize/content-manifest.json` に記録する。
