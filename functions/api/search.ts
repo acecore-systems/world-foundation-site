@@ -1,7 +1,7 @@
+import { VOYAGE_EMBEDDING_MODEL } from "../../src/scripts/search-embedding-policy.ts";
 import { getSafeInternalUrl } from "../../src/scripts/search-url-safety.ts";
 
 const EMBEDDING_MODEL = "@cf/baai/bge-m3";
-const VOYAGE_EMBEDDING_MODEL = "voyage-4-lite";
 const EMBEDDING_DIMENSIONS = 1024;
 const DEFAULT_MIN_SCORE = 0.4;
 const MAX_REQUEST_BYTES = 2048;
